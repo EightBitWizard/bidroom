@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/* Formal B2B design tokens (tech plan Section 15): a restrained slate/blue palette with
+   one accent for severity. Confidence and severity always pair color with text/icon, so
+   color is never the only signal (accessibility). */
+@theme {
+  --color-ink: #0f172a;
+  --color-surface: #f8fafc;
+  --color-card: #ffffff;
+  --color-accent: #1d4ed8;
+  --color-accent-ink: #ffffff;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-blocker: #b91c1c;
+  --color-uncertain: #b45309;
+  --color-ok: #15803d;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  overflow-wrap: break-word;
+}

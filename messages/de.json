@@ -1,0 +1,57 @@
+{
+  "common": {
+    "brand": "Bidroom",
+    "tagline": "Software zur Qualifizierung oeffentlicher Ausschreibungen in der Schweiz",
+    "disclaimer": "Dies ist keine amtliche Veroeffentlichung. Massgebend sind die auf der Plattform www.simap.ch publizierten Daten.",
+    "openApp": "Bidroom oeffnen",
+    "signIn": "Anmelden",
+    "signOut": "Abmelden"
+  },
+  "landing": {
+    "heroTitle": "Qualifizieren Sie oeffentliche Ausschreibungen, bevor sie Ihr Team binden",
+    "heroSubtitle": "Bidroom liest eine SIMAP-Ausschreibung und die von Ihnen bereitgestellten Unterlagen und zeigt moegliche Ausschlussgruende, Fristen, Zuschlagskriterien und benoetigte Nachweise, wobei jeder Befund mit seiner Quelle verknuepft ist.",
+    "ctaStart": "Zum Starten anmelden",
+    "notLegalAdvice": "Bidroom ist Entscheidungsunterstuetzung, keine Rechtsberatung. Es reicht keine Angebote ein."
+  },
+  "auth": {
+    "loginTitle": "Bei Bidroom anmelden",
+    "loginIntro": "Geben Sie Ihre geschaeftliche E-Mail-Adresse ein. Wir senden einen einmaligen Anmeldelink; es gibt kein Passwort.",
+    "emailLabel": "Geschaeftliche E-Mail",
+    "emailPlaceholder": "sie@firma.ch",
+    "sendLink": "Anmeldelink senden",
+    "linkSent": "Pruefen Sie Ihren Posteingang. Wenn die Adresse existiert, ist ein Anmeldelink unterwegs.",
+    "invalidEmail": "Diese E-Mail-Adresse sieht nicht gueltig aus. Bitte pruefen Sie sie und versuchen Sie es erneut.",
+    "rateLimited": "Zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es erneut.",
+    "genericError": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    "confirmTitle": "Anmeldung bestaetigen",
+    "confirmIntro": "Klicken Sie auf die Schaltflaeche unten, um die Anmeldung bei Bidroom abzuschliessen.",
+    "confirmButton": "Anmelden",
+    "confirmInvalid": "Dieser Anmeldelink ist ungueltig oder abgelaufen. Fordern Sie einen neuen an."
+  },
+  "app": {
+    "workspacesTitle": "Ihre Arbeitsbereiche",
+    "workspacesIntro": "Ein Arbeitsbereich enthaelt die Ausschreibungen, Nachweise und Entscheidungen eines Unternehmens.",
+    "noWorkspaces": "Sie haben noch keinen Arbeitsbereich. Erstellen Sie einen, um zu beginnen.",
+    "createWorkspace": "Arbeitsbereich erstellen",
+    "workspaceNameLabel": "Firmen- oder Arbeitsbereichsname",
+    "workspaceNamePlaceholder": "Acme Consulting AG",
+    "open": "Oeffnen",
+    "createError": "Der Arbeitsbereich konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
+  },
+  "workspace": {
+    "homeTitle": "Arbeitsbereich-Startseite",
+    "emptyIntro": "Dieser Arbeitsbereich ist bereit. Ausschreibungserfassung und Qualifizierung folgen in einem spaeteren Schritt.",
+    "settings": "Einstellungen"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "workingLanguage": "Arbeitssprache",
+    "members": "Mitglieder",
+    "intro": "Arbeitsbereich-Einstellungen. Weitere Steuerungen folgen mit spaeteren Funktionen."
+  },
+  "footer": {
+    "privacy": "Datenschutz",
+    "terms": "Bedingungen",
+    "security": "Sicherheit"
+  }
+}
