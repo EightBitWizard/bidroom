@@ -20,18 +20,18 @@ Documentation phase. No code yet; Phase 0 (walking skeleton) has not started. Se
 | `docs/adr/` | Architecture decision records |
 | `CLAUDE.md` | Working rules for AI coding agents |
 
-## Planned stack (tech plan Section 7)
+## Planned stack (tech plan Section 7, ADR 0002)
 
-TypeScript monorepo (pnpm workspaces): Next.js App Router plus a Node worker, Docker Compose with Caddy on one Hetzner VPS; Supabase Postgres and Storage (EU); Drizzle ORM; pg-boss; Better Auth; Zod; Tailwind plus shadcn/ui; Claude API (Sonnet extraction, Haiku triage) with citation verification; Mistral OCR; Stripe; Resend; Plausible; Sentry; Vitest plus Playwright.
+Cloudflare-native, aligned with the founder's moola project: a single Next.js (App Router) app on Cloudflare Workers via OpenNext, plus a pipeline Worker (Workflows, Queues, Cron) and one Container for parsing and ClamAV; D1 and R2 with `jurisdiction=eu`; Drizzle ORM; magic-link auth ported from moola (no passwords); Zod; Zustand; typed dictionary i18n; Tailwind v4 plus shadcn/ui; Claude API (Sonnet extraction, Haiku triage) with citation verification; Mistral OCR; Browser Rendering for PDF exports; Stripe; Resend; Plausible; Vitest plus Playwright.
 
-## Planned commands (available once Phase 0 lands)
+## Planned commands (available once Phase 0 lands, moola conventions)
 
 ```bash
-pnpm setup        # install, start local supabase, migrate, seed
-pnpm dev          # web app
-pnpm worker:dev   # worker
+pnpm dev          # next dev
 pnpm test         # unit plus integration
 pnpm test:e2e     # playwright
 pnpm test:eval    # extraction evaluation set
-pnpm lint && pnpm typecheck && pnpm build
+pnpm gate         # lint, typecheck, test, check:format, check:copy, build
+pnpm cf:preview   # build and preview on the local workerd runtime
+pnpm cf:deploy    # build and deploy
 ```

@@ -7,25 +7,28 @@ reference the tech plan Sections 27 and 28.
 
 ## Decisions needed for Phase 0 (blocking WP-002 infrastructure)
 
-- [ ] D-01: Supabase region. Zurich (eu-central-2) if offered at project creation, else Frankfurt
-      (eu-central-1). Sales materials must state the region explicitly; record the choice in an ADR.
+- [x] D-01: data residency. RESOLVED by ADR 0002: D1 and R2 are created with `jurisdiction=eu`
+      (a hard residency guarantee). State the posture in privacy and sales materials.
 - [ ] D-03: Domain and brand asset. Check availability of bidroom.ch and bidroom.com and secure
       both together if possible. Note: "Bidroom" was previously used by a hotel-booking startup, so
       the .com may be taken or parked; verify trademark posture for the software category in
       Switzerland while at it. Email deliverability setup (SPF, DKIM, DMARC) and legal pages need
       the final domain.
 
-## Accounts to create (needed during Phase 0 and 1; provide secrets as env/CI secrets, never in the repo)
+## Accounts to create (needed during Phase 0 and 1; provide secrets as wrangler/CI secrets, never in the repo)
 
 - [ ] GitHub: private repository `bidroom` (if not already the origin) with Actions enabled.
-- [ ] Hetzner Cloud account; one VPS (CX32 class, Falkenstein or Nuremberg) for WP-002.
-- [ ] Supabase account; create the production project in the D-01 region (free tier acceptable for
-      pilots; Pro at first real customer data).
+- [ ] Cloudflare: enable the Workers Paid plan (USD 5/month; required for Containers and
+      Workflows) on your existing account or a new one, and provide an API token with Workers,
+      D1, R2, and Queues permissions so the agent can provision and deploy via wrangler (WP-002).
+      D1 and R2 must be created with `jurisdiction=eu`. Same platform as moola, so the moola
+      deploy knowledge carries over.
 - [ ] Anthropic API account; provide `ANTHROPIC_API_KEY` and set a daily spend cap (plan default
       `LLM_DAILY_SPEND_CAP_USD=25`). Needed from WP-016 (LLM extraction).
 - [ ] Mistral API account for OCR; needed from WP-014.
-- [ ] Sentry account (free developer tier) for WP-002.
-- [ ] Resend account plus DNS records on the final domain (after D-03); needed for auth emails in WP-004.
+- [ ] Resend account plus DNS records on the final domain (after D-03); needed for auth emails in
+      WP-004. Consider using Resend for moola's magic-link sender too (still an open moola
+      operator item), so both projects share one email provider.
 - [ ] Uptime monitoring free tier (e.g. UptimeRobot or Better Stack) pointed at `/api/health`.
 - [ ] Later (Phase 2): Stripe account (CHF products Solo/Team), Plausible subscription at marketing launch.
 

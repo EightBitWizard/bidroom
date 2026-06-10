@@ -29,12 +29,14 @@ If the documents conflict, use this priority:
 
 ## Architecture invariants
 
-- Modular monolith: one Next.js app plus one Node worker, monorepo with pnpm workspaces. Do not add services, queues, databases, or vendors without explicit founder approval.
-- All state lives in Supabase (EU region): Postgres, Storage, pg-boss queue tables. The VPS is stateless and disposable.
-- `packages/domain` imports only `shared`. No React, no DB, no network. Fully unit-testable.
-- `packages/server/repositories` is the only module that touches the Drizzle client. Every repository function takes a verified workspace context from the authz module.
+- Cloudflare-native, aligned with moola (ADR 0002): one Next.js app deployed to Workers via OpenNext, plus a pipeline Worker (second wrangler config, same repo) and one Container for parsing and malware scanning. Single app with bounded `src/` folders enforced by ESLint boundary rules; no pnpm-workspaces monorepo. Do not add services, queues, databases, or vendors without explicit founder approval.
+- All state lives in Cloudflare D1 and R2, both created with `jurisdiction=eu`. The code is stateless; everything redeploys with wrangler.
+- `src/domain` imports only `src/shared`. No React, no DB, no network. Fully unit-testable.
+- `src/server/repositories` is the only module that touches the Drizzle client. Every repository function takes a verified workspace context from the authz module. D1 has no interactive transactions; multi-statement writes use `batch()` and idempotent steps.
 - UI components contain no business logic; data arrives via server components or server actions calling `server/services`.
-- Anything over ~2 seconds of work becomes a pg-boss job in the worker; no long work in request handlers.
+- Anything over ~2 seconds of work runs in the dossier Workflow, a Queue consumer, or a Cron handler; never in request handlers. Pipeline steps are plain, portable functions.
+- Auth follows moola's pattern: magic-link only, no passwords, signed httpOnly session cookies, store interfaces, rate-limited endpoints. Workspace invitations are signed single-use tokens.
+- Client state uses Zustand where needed (same as moola); i18n uses the typed dictionary pattern (`messages/*.json`), never hardcoded strings.
 - Citations are a first-class data structure. Every material finding stores a verified source excerpt and locator, or is explicitly marked unsupported. Never weaken the citation verification step.
 - Official SIMAP source fields are stored verbatim (`raw_source`) and displayed unmodified, always with the required disclaimer component.
 - Entitlements and plan limits are read from our database, never inferred from Stripe at request time.
@@ -50,11 +52,11 @@ If the documents conflict, use this priority:
 
 ## Privacy and security rules
 
-- Never log, email, or send to analytics any document content or extracted personal data. The logger uses an allowlist; Sentry has a beforeSend scrubber. Product analytics are metadata-only event rows in our own Postgres (the PRD-approved event list only).
+- Never log, email, or send to analytics any document content or extracted personal data. The logger uses an allowlist; there is no error-tracking SaaS at MVP (same as moola). Product analytics are metadata-only event rows in our own D1 (the PRD-approved event list only).
 - Never send account PII to LLM providers. Only extraction text goes to Claude/Mistral OCR; both are disclosed subprocessors; no training on customer content.
 - Never weaken the authz module, rate limits, the upload malware scan, or webhook signature verification.
 - Admin/support is metadata-first; document access only via logged, time-bounded break-glass with a reason.
-- Secrets only in environment configuration and GitHub encrypted secrets, never in the repo. Adding an env var requires updating `.env.example` and `docs/deployment.md` in the same commit.
+- Secrets only in wrangler secrets, `.dev.vars`, and GitHub encrypted secrets, never in the repo. Adding an env var or binding requires updating `.env.example` and `docs/deployment.md` in the same commit.
 - Export and deletion are real product workflows (FADP rights), not back-office favors.
 
 ## Engineering workflow
@@ -82,17 +84,13 @@ Schema and migration changes ship first and separately; never mix a migration wi
 
 ## Quality gate
 
-Before committing, run the project quality gate. If exact commands differ, discover them from `package.json` and update this section. Expected gate (tech plan Section 21):
+Before committing, run the project quality gate. If exact commands differ, discover them from `package.json` and update this section. Expected gate (tech plan Section 21, moola conventions):
 
-- `pnpm lint` (ESLint plus boundaries rule)
-- `pnpm typecheck`
-- `pnpm test` (unit plus integration)
+- `pnpm gate` runs lint (ESLint plus boundaries rule), typecheck, test (unit plus integration), check:format, check:copy, and build
 - `pnpm test:e2e` when UI or flows changed
 - `pnpm test:eval` when prompts or extraction changed
-- `pnpm build`
-- `pnpm format` check
 
-The gate must include a check that fails if an em dash appears anywhere in tracked source, docs, or copy, plus gitleaks for secrets.
+`check:copy` must fail if an em dash appears anywhere in tracked source, docs, or copy, or if a prohibited phrase or the old product name appears; CI adds gitleaks for secrets.
 
 ## Documentation policy
 

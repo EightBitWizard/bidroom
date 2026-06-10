@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Product name | Bidroom |
-| Version | v1.0 draft |
+| Version | v1.1 draft (Cloudflare-native revision, see `docs/adr/0002-cloudflare-native-stack.md`) |
 | Status | Draft for founder review |
 | Date | 2026-06-10 |
 | Owner | Malik (founder) |
 | Document type | Technical Architecture and Implementation Plan |
 | Source documents used | Market Analysis and Business Plan (Bidroom), Product Requirements and User Stories v0.9, current vendor documentation and pricing pages researched 2026-06-10 |
-| Technical decision status | Recommended stack chosen; 6 decisions remain open for founder input (Section 28) |
+| Technical decision status | Stack chosen and revised to Cloudflare-native, aligned with the founder's moola project (ADR 0002); D-01 resolved; remaining open decisions in Section 28 |
 | Assumptions | Solo technical founder in Switzerland; bootstrapped; budget for infrastructure in the low hundreds of CHF per month; AI coding agents (Claude Code or similar) do most implementation; founder reviews and operates; Switzerland-first launch; English UI first |
 | Open blockers | Written clarity from the SIMAP association on commercial reuse of notice data before paid launch (Section 27, R-02). Does not block pilot development with manual document upload. |
 
@@ -25,20 +25,20 @@
 
 **What we are building.** A web application for Swiss suppliers that turns a SIMAP tender notice plus user-uploaded tender documents into a source-linked qualification brief: likely blockers, deadlines, award criteria, required evidence, an evidence checklist linked to a reusable evidence library, and a recorded bid-or-pass decision, exportable as PDF. No discovery engine, no drafting, no submission.
 
-**Recommended architecture in one paragraph.** A single TypeScript monolith (Next.js full-stack app) plus one background worker process, both running as Docker containers on one small Hetzner VPS in Germany, with all stateful services delegated to Supabase in an EU AWS region (Postgres, file storage, daily backups). The document analysis pipeline is a queue of jobs in Postgres (pg-boss): text extraction from PDF and DOCX, OCR fallback via Mistral OCR for scanned pages, then structured extraction with citation anchors via the Claude API. Stripe handles billing, Resend handles transactional email, Plausible handles marketing analytics, and product analytics are plain event rows in our own Postgres. There is no Kubernetes, no microservices, no Redis, and no separate search cluster.
+**Recommended architecture in one paragraph.** A single TypeScript Next.js app deployed to Cloudflare Workers via OpenNext (the same setup as the founder's moola project), plus a small pipeline Worker in the same repository. All state lives in Cloudflare with a hard EU residency guarantee: D1 (SQLite, `jurisdiction=eu`) for structured data and R2 (`jurisdiction=eu`) for files. The document analysis pipeline is a Cloudflare Workflow with durable, retryable steps: malware scan and text extraction in one Cloudflare Container (full Node runtime), OCR fallback via Mistral OCR for scanned pages, then structured extraction with citation anchors via the Claude API. PDF exports render through the Browser Rendering API. Stripe handles billing, Resend handles transactional email, Plausible handles marketing analytics, and product analytics are plain event rows in our own D1. There are no servers to operate, no Kubernetes, no Redis, and no separate search cluster.
 
-**Recommended tech stack in one paragraph.** TypeScript end to end. Next.js (App Router) with React, Tailwind CSS, and shadcn/ui for the frontend; Zod for shared validation; Drizzle ORM on Postgres; pg-boss for jobs; Better Auth for authentication inside our own database; Stripe Billing with Checkout and Customer Portal; Claude API (Sonnet for extraction, Haiku for classification and triage) with Mistral OCR for scanned documents; Resend for email; Playwright-based server-side PDF rendering for exports; Sentry for errors; GitHub Actions for CI; Vitest and Playwright for tests.
+**Recommended tech stack in one paragraph.** TypeScript end to end, deliberately aligned with moola wherever Bidroom does not need more. Next.js (App Router) with React, Tailwind CSS v4, and shadcn/ui for the frontend; Zustand for the few client-state islands; a moola-style typed dictionary for i18n (English first, German next); Zod for shared validation; Drizzle ORM on D1; Cloudflare Workflows, Queues, and Cron Triggers for background work; magic-link authentication ported from moola's pattern (no passwords, signed session cookies, store interfaces); Stripe Billing with Checkout and Customer Portal; Claude API (Sonnet for extraction, Haiku for classification and triage) with Mistral OCR for scanned documents; Resend for email; Browser Rendering for PDF exports; GitHub Actions for CI; Vitest and Playwright for tests. No error-tracking SaaS at MVP (same as moola); structured allowlist logs plus the admin failure queue cover pilot debugging.
 
 **Most important technical decisions.**
 1. Manual document upload is the only document intake in MVP. Notice metadata comes from the public read-only SIMAP API, displayed unmodified with the required disclaimer. No stored SIMAP credentials, no scraping, no document mirroring.
 2. Citations are a first-class data structure, not a UI feature. Every finding stores document ID, page or paragraph anchor, and the verbatim source excerpt. The extraction pipeline is built around producing and verifying these anchors.
-3. Stateful data lives only in Supabase (EU region). The VPS is disposable and can be rebuilt from the Git repository in under an hour.
-4. The job pipeline is Postgres-based (pg-boss). No separate queue infrastructure until volume forces it, which it will not at this scale.
+3. Everything runs on Cloudflare, the platform the founder already operates moola on. State lives only in D1 and R2, both created with `jurisdiction=eu` for a guaranteed EU residency story. There is no server to maintain; the whole system redeploys from the Git repository with wrangler.
+4. The job pipeline is a Cloudflare Workflow (durable steps, built-in retries), with one Container for heavy parsing and malware scanning. No queue broker or worker fleet to operate.
 5. LLM cost is controlled structurally: per-plan dossier limits, prompt caching, Haiku-first triage, and page caps, because per-dossier LLM cost is the main variable-cost risk (Section 9).
 
 **Main risks.** Extraction accuracy on messy multilingual tender documents (trust risk, the single biggest product risk); SIMAP reuse terms requiring written agreement for some forms of content reuse; LLM cost per dossier exceeding the business plan's CHF 15 per customer per month assumption for heavy users; solo-founder operational load.
 
-**Main cost drivers.** Claude API tokens and Mistral OCR pages (variable, usage-driven), then Supabase Pro (USD 25 per month), Stripe fees (2.9% plus CHF 0.30 per domestic card transaction), and small fixed costs for VPS, email, analytics, and domain. Realistic MVP infrastructure cost is CHF 60 to 150 per month; paid launch CHF 150 to 450 per month. This sits inside the business plan's CHF 200 to 800 envelope.
+**Main cost drivers.** Claude API tokens and Mistral OCR pages (variable, usage-driven), then Stripe fees (2.9% plus CHF 0.30 per domestic card transaction), the Workers Paid plan (USD 5 per month, includes Containers and Workflows), and small usage-based costs for D1, R2, Browser Rendering, email, analytics, and domain. Realistic MVP infrastructure cost is CHF 10 to 50 per month; paid launch CHF 40 to 150 per month. This sits comfortably inside the business plan's CHF 200 to 800 envelope.
 
 **What must be built first.** The dossier pipeline: SIMAP URL intake, file upload, extraction with citations, qualification brief UI with a citation viewer, and the checklist. That is the wow moment and the trust proof. Everything else (billing, reminders, team features) is sequenced after it.
 
@@ -77,7 +77,7 @@
 | Principle | Meaning | Practical rule | Good example | Bad example |
 | --- | --- | --- | --- | --- |
 | Simplicity over cleverness | Prefer boring, well-documented technology an AI agent and a tired founder can reason about | One repo, one database, one deployable app plus one worker; no pattern introduced without a current need | A `processDossier` job that runs steps sequentially with clear states | An event-sourced saga orchestrator for a five-step pipeline |
-| Low fixed cost | Monthly burn must stay near zero until revenue exists | Every recurring service needs a line in Section 9; prefer free tiers and self-contained open source | pg-boss on the existing Postgres | A managed queue, managed search, and managed feature-flag service at MVP |
+| Low fixed cost | Monthly burn must stay near zero until revenue exists | Every recurring service needs a line in Section 9; prefer free tiers and platform-included services | Workflows and Queues included in the Workers Paid plan | A managed queue, managed search, and managed feature-flag service at MVP |
 | High return on engineering effort | Spend effort where the product wins: extraction quality and trust UX | Extraction pipeline, citation viewer, and evaluation set get the deepest engineering; admin and billing stay minimal | A regression evaluation set of real tenders run before each pipeline change | Pixel-perfect marketing animations while blocker extraction is unreliable |
 | Privacy by design | FADP privacy by design and by default is a product constraint, not a footnote | Document content never enters logs, analytics, or LLM training; admin sees metadata by default; deletion is a real workflow | Log entry: `file_id=..., pages=42, parser=ok` | Log entry containing extracted CV text |
 | Security by default | Sensible defaults, no optional security | TLS everywhere, encrypted storage, RBAC enforced in one server-side authorization module, secrets only in environment configuration | Central `assertWorkspaceAccess()` called by every data access path | Per-route ad hoc permission checks |
@@ -88,7 +88,7 @@
 | Accessibility | WCAG 2.1 AA on critical flows (PRD NFR-ACC-001) | Semantic HTML, labeled forms, keyboard-usable citation viewer, contrast-checked design tokens | Findings list navigable by keyboard with visible focus | Click-only hover citations |
 | Documentation as part of implementation | Docs change in the same commit as behavior | PR checklist item; AI agents instructed to update docs with code | New env var added together with `.env.example` and docs update | A README describing last month's architecture |
 | No premature scaling | Build for 100 workspaces, document the path to 10,000 | Scaling notes per component (Section 7), no horizontal-scale machinery now | Single worker with concurrency 2 | Autoscaling worker fleet behind a load balancer |
-| Operational simplicity | One person must be able to operate, debug, and restore everything | Managed backups, one dashboard per concern, a written runbook, restore drill monthly | Supabase point-in-time backups plus a tested restore script | Self-hosted Postgres with hand-rolled cron backups |
+| Operational simplicity | One person must be able to operate, debug, and restore everything | Managed backups, one dashboard per concern, a written runbook, restore drill monthly | D1 Time Travel plus a tested restore script | Self-hosted database with hand-rolled cron backups |
 
 ---
 
@@ -133,66 +133,65 @@
 | --- | --- |
 | Microservices, Kubernetes, service mesh | Massive operational cost, zero benefit at this scale |
 | Automated SIMAP polling, matching, and alerting | SIMAP already offers saved-search subscriptions; PRD defers discovery; reuse terms need clarification first |
-| Vector database and semantic search | Citation-anchored extraction does not need it; plain Postgres full-text search is enough later |
-| Redis or external message broker | pg-boss on Postgres handles this volume with one fewer system to operate |
-| Multi-region or high-availability clustering | 99.5% is reachable on a single region with managed Postgres |
+| Vector database and semantic search | Citation-anchored extraction does not need it; SQLite full-text search (FTS5) is enough later |
+| Redis or external message broker | Workflows and Queues are part of the Workers platform; no broker to operate |
+| Multi-region or high-availability clustering | 99.5% is reachable on managed platform services |
 | SSO, SCIM, enterprise provisioning | Enterprise plan is sales-led and later |
 | Native mobile apps and browser extensions | PRD lists both as distractions |
 | Custom ML training or fine-tuning | Prompted frontier models plus an evaluation set are the right tool; training on customer data is prohibited anyway |
-| Data warehouse and BI stack | Product analytics are a Postgres table and a simple admin page |
+| Data warehouse and BI stack | Product analytics are a D1 table and a simple admin page |
 | Public tender directory or SEO mirror of notices | Legal surface under SIMAP terms; PRD marks it out of scope |
 
 ---
 
 ## 6. Recommended architecture overview
 
-**System shape.** A modular monolith: one Next.js application serving the marketing site, product UI, and API routes, plus one Node worker process consuming a Postgres-backed job queue. Both are containers on one Hetzner VPS. All state (Postgres, files, queue tables) lives in Supabase in an EU AWS region. Third parties: Stripe, Claude API, Mistral OCR, Resend, Plausible, Sentry, and the public read-only SIMAP API.
+**System shape.** A modular monolith on Cloudflare: one Next.js application (deployed to Workers via OpenNext, exactly like moola) serving the marketing site, product UI, and API routes, plus a pipeline Worker in the same repository hosting the dossier Workflow, queue consumers, and cron handlers, and one Container for heavy parsing and malware scanning. All state lives in Cloudflare with `jurisdiction=eu`: D1 for structured data, R2 for files. Third parties: Stripe, Claude API, Mistral OCR, Resend, Plausible, and the public read-only SIMAP API.
 
 **Main components.**
 
 | Component | Technology | Responsibility |
 | --- | --- | --- |
-| Web app | Next.js (App Router), React, Tailwind, shadcn/ui | Marketing pages, auth screens, workspace UI, dossier UI, citation viewer, checklist, evidence library, settings, admin console |
-| API layer | Next.js route handlers plus server actions, Zod-validated | Auth, dossier intake, uploads (signed URLs), findings feedback, decisions, exports, billing webhooks, privacy requests |
-| Worker | Node process, pg-boss consumer | Notice fetch, file text extraction, OCR fallback, LLM extraction, citation verification, brief assembly, PDF rendering, email sending, retention cleanup |
-| Database | Supabase Postgres (EU region) | All structured data, job queue, audit events, product analytics events |
-| Object storage | Supabase Storage (same region) | Uploaded tender documents, evidence files, generated PDF exports; private buckets, signed URLs |
-| Auth | Better Auth (runs inside our app and database) | Email plus password and magic links, sessions, workspace invitations |
+| Web app | Next.js (App Router) on Cloudflare Workers via OpenNext; React, Tailwind v4, shadcn/ui | Marketing pages, auth screens, workspace UI, dossier UI, citation viewer, checklist, evidence library, settings, admin console |
+| API layer | Next.js route handlers plus server actions, Zod-validated | Auth, dossier intake, uploads (presigned URLs), findings feedback, decisions, exports, billing webhooks, privacy requests |
+| Pipeline Worker | Cloudflare Workflows, Queues, Cron Triggers (second wrangler config, same repo) | Dossier Workflow orchestration (notice fetch, extraction, OCR fallback, LLM extraction, citation verification, brief assembly), email sending, reminders, retention cleanup |
+| Container | Cloudflare Container, Node image | ClamAV malware scan and PDF/DOCX parsing on full Node, invoked from Workflow steps |
+| Database | Cloudflare D1 (SQLite, `jurisdiction=eu`) | All structured data, audit events, product analytics events |
+| Object storage | Cloudflare R2 (`jurisdiction=eu`) | Uploaded tender documents, evidence files, generated PDF exports; private bucket, presigned URLs |
+| Auth | Magic-link auth ported from moola's pattern (our code, our D1) | Magic links, signed httpOnly sessions, workspace invitations as signed single-use tokens |
 | Payments | Stripe Checkout, Billing, Customer Portal, webhooks | Trial-to-paid, plan changes, grace, cancellation |
 | Email | Resend | Verification, invitations, reminders, billing notices; metadata-only content |
 | Analytics | Plausible (marketing site) plus internal `events` table (product) | Privacy-friendly measurement per PRD NFR-OBS-001 |
-| Error tracking | Sentry (scrubbed) | Exceptions, pipeline failure grouping |
+| Logs and failure triage | Structured allowlist logs (Workers Logs) plus the admin failure queue | Pipeline failure grouping by category in our own DB; no error-tracking SaaS at MVP (same as moola) |
+| PDF rendering | Cloudflare Browser Rendering API | Renders the print HTML route to PDF for exports |
 | AI components | Claude API (Sonnet for extraction, Haiku for triage and classification); Mistral OCR for scanned pages | Structured, citation-anchored extraction |
 | Admin and support | Routes inside the same app, `support_admin` role | Account lookup, job health, entitlement overrides, break-glass access, deletion fulfillment |
 | External source | SIMAP public API (read-only, unauthenticated for publication search and details, per [SIMAP FAQ](https://www.simap.ch/en/help/faq) and the open-source [simap-mcp client](https://github.com/Digilac/simap-mcp)) | Notice metadata for a pasted URL; displayed unmodified with the required disclaimer |
 
-**Deployment model.** Docker Compose (web, worker, Caddy reverse proxy with automatic TLS) on one Hetzner VPS in Falkenstein or Nuremberg, deployed via Coolify or a plain GitHub Actions SSH deploy. Supabase, Stripe, Resend, Sentry, and Plausible are managed SaaS. DNS and registrar at Infomaniak (CH) or Cloudflare.
+**Deployment model.** GitHub Actions runs the quality gate and e2e, then deploys with wrangler: the web app via `opennextjs-cloudflare deploy` (same as moola) and the pipeline Worker plus Container via `wrangler deploy` against its own config. D1 migrations apply with `wrangler d1 migrations apply` before the deploy step. Stripe, Resend, and Plausible are managed SaaS. DNS and registrar at Cloudflare.
 
-**Local development model.** `pnpm dev` runs the Next.js app; `supabase start` runs local Postgres and storage in Docker; the worker runs with `pnpm worker:dev`; Stripe CLI forwards webhooks; LLM calls run against recorded fixtures by default and against the live API only with an explicit env flag. One command, `pnpm setup`, prepares a fresh machine.
+**Local development model.** `pnpm dev` runs the Next.js app; `wrangler dev` and the OpenNext preview simulate D1, R2, Queues, and the Workflow locally (miniflare); Stripe CLI forwards webhooks; LLM calls run against recorded fixtures by default and against the live API only with an explicit env flag. Script names follow moola: `pnpm gate`, `cf:build`, `cf:preview`, `cf:deploy`, `cf-typegen`.
 
 ```mermaid
 flowchart TD
-  U[User browser] -->|HTTPS| C[Caddy reverse proxy TLS]
-  C --> W[Next.js app UI plus API]
-  W -->|SQL| DB[(Supabase Postgres EU)]
-  W -->|signed URLs| ST[(Supabase Storage EU)]
-  W -->|enqueue jobs| Q[(pg-boss queue tables in Postgres)]
-  K[Worker process] -->|consume| Q
-  K -->|read and write| DB
-  K -->|files| ST
-  K -->|notice metadata read-only| SIMAP[SIMAP public API]
-  K -->|text extraction prompts| LLM[Claude API]
-  K -->|scanned pages| OCR[Mistral OCR]
-  K -->|render PDF| PDF[Headless Chromium in worker]
+  U[User browser] -->|HTTPS| W[Next.js app on Workers via OpenNext]
+  W -->|SQL| DB[(Cloudflare D1 EU jurisdiction)]
+  W -->|presigned URLs| ST[(Cloudflare R2 EU jurisdiction)]
+  W -->|start workflow| WF[Dossier Workflow pipeline Worker]
+  WF -->|scan and parse files| CT[Cloudflare Container Node plus ClamAV]
+  WF -->|read and write| DB
+  WF -->|files| ST
+  WF -->|notice metadata read-only| SIMAP[SIMAP public API]
+  WF -->|extraction prompts| LLM[Claude API]
+  WF -->|scanned pages| OCR[Mistral OCR]
+  WF -->|render PDF| PDF[Browser Rendering API]
   W --> STRIPE[Stripe Checkout Billing Portal]
   STRIPE -->|webhooks| W
-  K --> MAIL[Resend transactional email]
+  WF --> MAIL[Resend transactional email]
   U -.->|marketing pageviews| PL[Plausible EU]
-  W --> SENTRY[Sentry scrubbed errors]
-  K --> SENTRY
 ```
 
-**Why this shape and not serverless.** The pipeline runs multi-minute jobs (OCR plus several LLM passes over large documents). Serverless platforms impose function timeouts and complicate long-running work and Chromium-based PDF rendering. A persistent worker is simpler, cheaper, and easier for an AI agent to reason about. The web tier could move to Vercel later without changing the worker; that path is documented in Section 7.
+**Why this shape.** The v1.0 plan rejected serverless because of function timeouts and Chromium rendering; that constraint set is gone. Cloudflare Workflows run durable multi-minute pipelines with built-in retries, Containers (GA since April 2026, included in the Workers Paid plan) run full Node for parsing and ClamAV, and Browser Rendering replaces self-hosted Chromium. Choosing Cloudflare also puts both of the founder's products on one platform with one deploy story and one set of conventions, which is worth real solo-founder time. The prior Hetzner VPS plus Supabase design remains documented in Section 8 as the fallback if platform limits ever bite (ADR 0002).
 
 ---
 
@@ -200,38 +199,38 @@ flowchart TD
 
 | Layer | Recommendation | Why it fits | Alternatives considered | Why rejected | Cost | Operational implications | Risks | Migration path |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Language | TypeScript everywhere | One language for UI, API, worker, and shared schemas; best AI-agent ecosystem | Python backend plus TS frontend | Two toolchains, duplicated types, more glue for a solo founder | Free | One runtime (Node 22 LTS) | None material | n/a |
-| Frontend framework | Next.js (App Router) | Server-first rendering, file routing, marketing plus app in one deploy, huge documentation corpus for AI agents | Remix/React Router, SvelteKit, Vite SPA plus Fastify | All viable; Next.js has the largest ecosystem and template base; SPA splits the stack | Free (self-hosted) | Standard Node container | Framework churn; vendor-flavored features | Avoid Vercel-only APIs; stick to standard Node deploy |
+| Language | TypeScript everywhere | One language for UI, API, pipeline, and shared schemas; same as moola; best AI-agent ecosystem | Python backend plus TS frontend | Two toolchains, duplicated types, more glue for a solo founder | Free | Workers runtime (workerd) plus Node in the Container | None material | n/a |
+| Frontend framework | Next.js (App Router) | Server-first rendering, file routing, marketing plus app in one deploy, same framework as moola, huge documentation corpus for AI agents | Remix/React Router, SvelteKit, Vite SPA plus Fastify | All viable; Next.js has the largest ecosystem and template base; SPA splits the stack | Free | Deployed via the OpenNext Cloudflare adapter (proven in moola) | Framework churn; vendor-flavored features | Avoid Vercel-only APIs; stick to OpenNext-compatible features |
 | Styling and design system | Tailwind CSS plus shadcn/ui | Formal, dense B2B UI fast; components are copied into the repo, no runtime dependency lock-in | MUI, Mantine, custom CSS | Heavier runtime or slower to a serious look | Free | None | Aesthetic sameness; mitigate with custom tokens | Components live in repo, restylable |
-| State management | React Server Components plus TanStack Query for client islands; no global store | App is mostly server-rendered reads plus forms | Redux, Zustand | Unneeded complexity | Free | None | None | Add Zustand locally if a screen needs it |
-| Validation | Zod, schemas in `packages/shared` | One schema validates API input, forms, job payloads, and LLM output parsing | Valibot, TypeBox | Zod has the broadest ecosystem (drizzle-zod, react-hook-form resolvers) | Free | None | None | Mechanical swap if ever needed |
-| Backend model | Next.js route handlers plus a separate long-running Node worker | Matches bursty multi-minute pipeline jobs; one repo | Separate Fastify/NestJS API; serverless functions | Extra service for no benefit; serverless timeouts conflict with the pipeline | Free | Two containers | Worker and web must share schema versions; solved by monorepo and migrations-first deploys | Worker can be split out unchanged later |
-| Database | Postgres on Supabase, EU AWS region (Frankfurt; verify Zurich eu-central-2 availability at project creation) | Managed Postgres plus storage plus daily backups in one EU vendor; Pro plan [USD 25 per month including a USD 10 compute credit](https://supabase.com/pricing) | Neon, Hetzner-self-hosted Postgres, AWS RDS | Neon lacks bundled object storage; self-hosting shifts backup burden to founder; RDS is costlier and heavier | Free tier for dev; USD 25 per month production | Backups, PITR add-on optional | Vendor pause on free tier; compute is always-on billing | Plain Postgres plus S3-compatible storage; pg_dump restore to any Postgres |
-| ORM / query layer | Drizzle ORM plus drizzle-kit migrations | Typed SQL close to the metal, deterministic migrations AI agents handle well | Prisma, Kysely | Prisma adds an engine layer and slower cold paths; Kysely lacks first-class migrations | Free | Migration discipline required | Younger than Prisma | Schema is plain SQL; switchable |
-| Object storage | Supabase Storage (private buckets, signed URLs) | Same region and vendor as the database; S3-compatible API | Cloudflare R2, Hetzner Object Storage | More vendors to contract and disclose as subprocessors; R2 region pinning needs care | Included up to 100 GB on Pro | Bucket policies, signed URL TTLs | Egress overage at scale | S3 API compatible; move objects with rclone |
-| Search | Postgres full-text (deferred; not in MVP) | Dossier counts are tiny; list filters suffice | Meilisearch, Typesense | Premature | Free | None | None | Add tsvector columns when needed |
-| Queue / background jobs | pg-boss (Postgres-backed) | Transactional enqueue with the same DB write; retries, scheduling, no new infrastructure | BullMQ plus Redis, Inngest, Trigger.dev | Each adds a service or a US-based vendor processing job payloads | Free | None beyond Postgres | Throughput ceiling far above our needs | Job interface is thin; swap consumer later |
-| Authentication | Better Auth (open source, sessions and users in our Postgres) | Keeps all auth data in the EU database; no per-MAU fees; email plus password, magic links, invitations | Clerk, Auth0, Supabase Auth | Clerk/Auth0 are US-hosted subprocessors with per-MAU pricing, poor fit for the privacy story; Supabase Auth couples us to GoTrue and RLS patterns we are not using | Free | We own password reset and session security; mitigated by library defaults and tests | Self-managed auth requires care | Standard tables; exportable to any provider |
-| Authorization | Application-level RBAC in one module (`services/authz`) | Two roles now (owner, member) plus internal `support_admin`; single enforcement point is auditable | Postgres RLS | RLS adds policy complexity while all access already flows through one server | Free | Tests required per Section 20 | Bypass risk if agents add raw queries; lint rule restricts DB access to repositories | RLS can be layered on later |
+| State management | React Server Components plus Zustand for the few client islands (same as moola); no query library | App is mostly server-rendered reads plus forms; processing-status polling is a small hook | Redux, TanStack Query | Unneeded complexity; aligning on Zustand keeps both projects on one pattern | Free | None | None | Add TanStack Query later only if client caching needs grow |
+| Validation | Zod, schemas in `src/shared` | One schema validates API input, forms, job payloads, and LLM output parsing; same library as moola | Valibot, TypeBox | Zod has the broadest ecosystem (drizzle-zod, react-hook-form resolvers) | Free | None | None | Mechanical swap if ever needed |
+| Backend model | Next.js route handlers plus a pipeline Worker (Workflows, Queues, Cron) and one Container for heavy parsing | Durable multi-minute pipeline without operating servers; one repo, two wrangler configs | Separate Fastify/NestJS API; long-running VPS worker (v1.0 plan) | Extra service for no benefit; the VPS design is the documented fallback (ADR 0002) | Workers Paid USD 5 per month | Two deploy targets from one repo | Web and pipeline must share schema versions; solved by one repo and migrations-first deploys | Pipeline logic is plain functions; portable to a Node worker unchanged |
+| Database | Cloudflare D1 (SQLite) created with `jurisdiction=eu` ([guaranteed EU storage and processing](https://developers.cloudflare.com/d1/configuration/data-location/)) | Same database family as moola; zero-ops, included in the Workers plan; Time Travel gives 30-day point-in-time restore | Supabase Postgres (v1.0 choice), Neon, self-hosted Postgres | Postgres adds a second vendor and dashboard for capacity Bidroom does not need; documented fallback if D1 limits bite (ADR 0002) | Included; usage-based beyond free allotment | No interactive transactions (use `batch()` and idempotent steps); 10 GB per-database cap | SQLite feature gaps vs Postgres at large scale | Standard SQLite; export and restore to any SQLite or migrate to Postgres via Drizzle |
+| ORM / query layer | Drizzle ORM (SQLite dialect on D1) plus drizzle-kit migrations applied with `wrangler d1 migrations apply` | Typed SQL close to the metal, deterministic migrations AI agents handle well; justified divergence from moola's raw SQL because Bidroom has ~16 evolving entities | Raw SQL (moola pattern), Prisma, Kysely | Raw SQL does not scale to this entity count; Prisma adds an engine layer; Kysely lacks first-class migrations | Free | Migration discipline required | Younger than Prisma | Schema is plain SQL; switchable |
+| Object storage | Cloudflare R2 with [`jurisdiction=eu`](https://developers.cloudflare.com/r2/reference/data-location/) (private bucket, presigned URLs) | Same vendor as everything else; jurisdiction is a guarantee, not a hint; zero egress fees | Supabase Storage (v1.0 choice), Hetzner Object Storage | Second vendor for no benefit on this stack | Usage-based, ~USD 0.015 per GB-month | Bucket policies, presigned URL TTLs | None material | S3 API compatible; move objects with rclone |
+| Search | SQLite full-text (FTS5, deferred; not in MVP) | Dossier counts are tiny; list filters suffice | Meilisearch, Typesense | Premature | Free | None | None | Add FTS5 virtual tables when needed |
+| Queue / background jobs | Cloudflare Workflows (dossier pipeline) plus Queues (simple async) plus Cron Triggers (scheduled) | Durable multi-step execution with built-in retries and state; included in the Workers plan; nothing to operate | pg-boss on Postgres (v1.0 choice), BullMQ plus Redis, Inngest | pg-boss needs Postgres and a persistent worker; the others add services or US vendors processing job payloads | Included; usage-based beyond allotment | Step semantics: each step idempotent, state passed explicitly | Workflows API is Cloudflare-proprietary; pipeline steps stay plain functions to keep them portable | Step functions port unchanged to any job runner |
+| Authentication | Magic-link auth ported from moola's pattern: no passwords, signed httpOnly session cookies (HMAC-SHA256), store interfaces on D1, rate-limited; invitations as signed single-use tokens | Proven, founder-reviewed code pattern shared with moola; no passwords to leak or stuff; all auth data in our EU database; no per-MAU fees (founder decision, ADR 0002) | Better Auth (v1.0 choice), Clerk, Auth0 | Better Auth adds a dependency to learn and track for features the moola pattern covers; Clerk/Auth0 are US-hosted subprocessors with per-MAU pricing | Free | We own session security; mitigated by the proven pattern, the mandatory auth test suite, and rate limits | Self-managed auth requires care | Standard tables; exportable to any provider |
+| Authorization | Application-level RBAC in one module (`server/authz`) | Two roles now (owner, member) plus internal `support_admin`; single enforcement point is auditable | Database-level row security | D1 has no RLS; all access already flows through one server module anyway | Free | Tests required per Section 20 | Bypass risk if agents add raw queries; lint rule restricts DB access to repositories | RLS available if ever migrated to Postgres |
 | Payments | Stripe Checkout plus Billing plus Customer Portal | Fastest correct subscription implementation; CH support; [2.9% plus CHF 0.30 domestic cards, plus 1.5% international cards, plus 2% currency conversion](https://stripe.com/en-ch/pricing); Billing adds 0.7% of billing volume | Paddle (merchant of record), Lemon Squeezy | MoR fees are higher; Swiss B2B customers expect CHF card billing and later QR-bill invoicing which we handle manually | Per-transaction only | Webhook handling, test mode | Fee stack on small amounts | Entitlements are vendor-neutral in our DB |
 | Email | Resend ([free 3,000 emails per month, Pro USD 20 for 50,000](https://resend.com/pricing)) | Generous free tier, clean API, React Email templates | Postmark, Brevo, SES | Postmark free tier is 100 emails; SES is operationally heavier | Free at MVP | SPF, DKIM, DMARC setup | US processor; mitigate by keeping email content to metadata (names, links, dates), disclosed as subprocessor | Mailer behind an interface |
 | Analytics (marketing) | Plausible ([from USD 9 per month at 10k pageviews, EU-hosted](https://plausible.io/)) | Cookieless, EU, matches trust positioning | GA4, PostHog | GA4 conflicts with positioning; PostHog is more than needed | USD 9 per month | Script tag | None | Export and re-import |
-| Analytics (product) | Internal `events` table in Postgres | PRD NFR-OBS-001 requires metadata-only events; our DB is the safest place | PostHog EU | Extra subprocessor for ~12 event types | Free | Simple admin charts | DIY dashboards | Forwardable to any tool later |
-| Error tracking | Sentry (free developer tier; paid team tier low tens of USD per month, verify at [sentry.io/pricing](https://sentry.io/pricing)) | Standard, good Next.js and Node SDKs | GlitchTip self-hosted, Rollbar | Self-hosting adds ops now | Free at MVP | PII scrubbing config required | Accidental payload capture; mitigated by `beforeSend` scrubber and tests | Sentry-compatible GlitchTip later |
-| Logging | pino JSON logs to stdout, collected on the VPS with rotation; no log SaaS at MVP | Cheap, sufficient at this scale; privacy rule enforced at the logger | Axiom, Betterstack | Cost and another subprocessor | Free | journald/log rotation | Limited retention; acceptable | Add a collector later |
-| Hosting (app) | Hetzner Cloud VPS, Germany (CX32 class, around EUR 7 per month before the April 2026 price adjustment; verify on [hetzner.com](https://www.hetzner.com/cloud/) and [price adjustment notice](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/)), Docker Compose plus Caddy, optionally managed by Coolify | EU residency, lowest fixed cost, full control of long-running worker and Chromium | Railway/Render (EU regions), Fly.io, Vercel plus separate worker host | All workable; managed PaaS costs more and splits the worker story; Vercel alone cannot host the worker | EUR 7 to 17 per month | OS updates, Docker, firewall; ~1 hour per month; mitigated by stateless design | Single VM is a SPOF; acceptable at 99.5% target with quick rebuild | Containers move to any PaaS unchanged |
+| Analytics (product) | Internal `events` table in D1 | PRD NFR-OBS-001 requires metadata-only events; our DB is the safest place | PostHog EU | Extra subprocessor for ~12 event types | Free | Simple admin charts | DIY dashboards | Forwardable to any tool later |
+| Error tracking | None at MVP (same as moola): structured allowlist logs plus the admin failure queue (WP-024) grouping pipeline failures by category in our own DB | One less US subprocessor; the failure queue is needed for pilot corrections anyway | Sentry (v1.0 choice), GlitchTip | Adds a subprocessor and scrubbing surface before it earns its keep; revisit if pilot debugging proves painful | Free | Failure-queue triage discipline | Less stack-trace convenience | Add Sentry or GlitchTip behind the existing log interface later |
+| Logging | Structured JSON logs via Workers Logs (dashboard, search, short retention); allowlist logger so content never enters logs | Built into the platform, sufficient at this scale; privacy rule enforced at the logger | Axiom, Betterstack | Cost and another subprocessor | Included | Retention is short (days); failure queue holds what matters | Limited retention; acceptable | Add a collector later |
+| Hosting (app) | Cloudflare Workers via OpenNext, Workers Paid plan ([USD 5 per month](https://developers.cloudflare.com/workers/platform/pricing/), includes Workflows, Queues, Containers allotments) | Same platform and deploy story as moola; no servers to patch; EU data via D1/R2 jurisdictions | Hetzner VPS plus Docker (v1.0 choice), Railway/Render, Fly.io | The VPS design is the documented fallback (ADR 0002); managed PaaS adds cost without removing the second platform | USD 5 per month plus usage | None beyond wrangler configs | Platform limits (CPU, memory, subrequests); mitigated by the Container for heavy work | OpenNext output also deploys to Node; pipeline steps are plain functions |
 | CI/CD | GitHub Actions (free tier) | Standard; AI agents know it | GitLab CI | No reason to switch ecosystems | Free at this scale | Maintain one workflow file | None | n/a |
 | Testing | Vitest (unit/integration), Playwright (E2E), Testing Library, axe-core for a11y checks | Fast, typed, standard | Jest, Cypress | Slower, heavier | Free | None | None | n/a |
 | Documentation tooling | Markdown in `/docs`, ADRs in `/docs/adr`, README per package | Zero infrastructure, versioned with code | Notion, wiki | Drift from code | Free | Discipline | None | n/a |
-| Feature flags | `flags` table in Postgres plus typed accessor | PRD NFR-MNT-001 wants config without code changes; a table plus admin form suffices | LaunchDarkly, Flagsmith | Cost and overkill | Free | None | None | Swap accessor implementation |
-| Internationalization | next-intl with English message catalog from day one | German UI is planned; retrofitting i18n is expensive | Hardcoded strings now | Costly rework later | Free | Keys discipline | None | n/a |
+| Feature flags | `flags` table in D1 plus typed accessor | PRD NFR-MNT-001 wants config without code changes; a table plus admin form suffices | LaunchDarkly, Flagsmith | Cost and overkill | Free | None | None | Swap accessor implementation |
+| Internationalization | Moola's typed dictionary pattern: externalized `messages/*.json` with a lightweight typed accessor, English first, German next | Proven in moola across four locales; no library to track; retrofitting i18n is expensive so strings are externalized from day one | next-intl (v1.0 choice), hardcoded strings | A library adds API surface the dictionary pattern covers; hardcoding costs rework later | Free | Keys discipline | None | Move catalogs into next-intl later if richer features are needed |
 | CMS / content | MDX files in repo for marketing and help pages | Founder is technical; no CMS needed | Sanity, Contentful | Cost, complexity | Free | None | None | Add CMS if a marketer joins |
 | LLM provider | Claude API: Sonnet 4.6 (USD 3 input / 15 output per million tokens) for extraction, Haiku 4.5 (USD 1 / 5) for triage; batch API 50% discount; prompt caching for repeated system prompts ([pricing](https://platform.claude.com/docs/en/about-claude/pricing)) | Strong long-document extraction and instruction-following; no training on customer content by default under [commercial terms](https://www.anthropic.com/legal/commercial-terms) | OpenAI, Mistral Large (EU), Claude via Bedrock or Vertex EU regional endpoints | Mistral is the EU-residency fallback but weaker on complex extraction today; Bedrock/Vertex EU endpoints are the path if pilots demand EU-only inference, at more cloud setup cost | Variable; Section 9 | Disclose as subprocessor; US processing must be in the DPA | Model and price churn; abstraction layer plus eval set mitigate | Provider behind one `llm.ts` interface with golden-output tests |
 | OCR | Mistral OCR 3 (USD 2 per 1,000 pages, USD 1 batch, [Mistral announcement](https://mistral.ai/news/mistral-ocr-3/)); used only when native text extraction yields too little text | EU vendor, cheap, markdown output with structure | Azure Document Intelligence, AWS Textract | 5x to 30x more expensive for our document mix | ~USD 0.002 per page | Page-count guardrails | Accuracy on poor scans; flagged as low-confidence | OCR behind one interface |
-| PDF generation (exports) | Headless Chromium via Playwright in the worker, rendering a print HTML route | One template system (React) for screen and PDF; disclaimer guaranteed identical | react-pdf, Typst, wkhtmltopdf | Second template language or weaker layout | Free | Chromium in the worker image (~300 MB) | Memory spikes; cap concurrency to 1 | Swap renderer behind `exports/render.ts` |
-| File parsing | `unpdf`/`pdfjs-dist` for PDF text plus layout, `mammoth` for DOCX, `file-type` for sniffing, ClamAV (clamd container) for malware scanning | Proven open-source parsers | Commercial parsing APIs | Cost; sends full documents to more third parties | Free | ClamAV signature updates automatic | Parser edge cases; covered by fixture corpus | Parsers behind `extraction/` interfaces |
+| PDF generation (exports) | Cloudflare Browser Rendering API rendering a print HTML route | One template system (React) for screen and PDF; disclaimer guaranteed identical; no Chromium to host | Playwright Chromium in a worker (v1.0 choice), react-pdf, Typst | Self-hosted Chromium needs a server; the others mean a second template language or weaker layout | Usage-based, included allotment on Workers Paid | None | Per-render limits; exports are single-page documents well within them | Swap renderer behind `exports/render.ts` |
+| File parsing | `unpdf`/`pdfjs-dist` for PDF text plus layout, `mammoth` for DOCX, `file-type` for sniffing, ClamAV for malware scanning, all running inside the Cloudflare Container (full Node, no Worker memory limits) | Proven open-source parsers; the Container isolates heavy and risky work from the web tier | Commercial parsing APIs; parsing inside Workers | API cost and more third parties seeing documents; Workers' 128 MB memory is unsafe for 50 MB uploads | Container compute usage-based, included allotment | ClamAV signature updates in the image; rebuild weekly | Parser edge cases; covered by fixture corpus | Parsers behind `extraction/` interfaces; image runs anywhere Docker runs |
 
-**Scaling paths.** Postgres: upgrade Supabase compute tiers, then read replicas (available on Pro). Worker: raise concurrency, then run a second worker container; pg-boss handles competing consumers. Web: move to two VPS instances behind Hetzner's load balancer or to a PaaS; the app is stateless. Storage: lifecycle rules and the egress line in Section 9. None of this is needed below several hundred active workspaces.
+**Scaling paths.** Database: D1 read replication, then split read models, then migrate to Postgres via Drizzle if the 10 GB cap or SQLite semantics ever bind. Pipeline: raise Workflow concurrency and Container instance counts (platform-managed). Web: Workers scale automatically. Storage: R2 lifecycle rules. None of this is needed below several hundred active workspaces.
 
 ---
 
@@ -252,33 +251,33 @@ Decision: Next.js.
 
 | Option | Pros | Cons | Cost per month | Complexity | Fit | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| Hetzner VPS plus Docker Compose/Coolify (DE) | EU residency, cheapest, full control over worker and Chromium, 20 TB traffic included | ~1 hour per month of ops; single VM SPOF | EUR 7 to 17 | Medium | High | **Chosen** |
-| Railway / Render, EU region | Managed deploys, less ops | Higher cost; per-service pricing; residency must be configured and verified per service | USD 20 to 60 | Low | Medium-high | Fallback if VPS ops prove too heavy |
+| Cloudflare Workers via OpenNext plus Workflows, Containers, Browser Rendering | Same platform as moola (shared conventions and knowledge), no servers to operate, EU jurisdictions on D1/R2, Containers GA since April 2026 cover the heavy compute | Platform-specific APIs for Workflows/Containers; per-product limits to design around | USD 5 plus usage | Medium | High | **Chosen (ADR 0002)** |
+| Hetzner VPS plus Docker Compose/Coolify (DE) | EU residency, cheap, full control over a long-running worker and Chromium | ~1 hour per month of ops; single VM SPOF; a second platform next to moola | EUR 7 to 17 | Medium | Medium-high | v1.0 choice; documented fallback if Cloudflare limits bite |
+| Railway / Render, EU region | Managed deploys, less ops | Higher cost; per-service pricing; residency must be configured and verified per service | USD 20 to 60 | Low | Medium | No |
 | Fly.io (fra/ams) | Good for containers, cheap small VMs | More moving parts (volumes, machines API); reliability complaints in community | USD 10 to 30 | Medium | Medium | No |
-| Vercel (web) plus separate worker host | Best Next.js DX | Splits deploy story; function limits push everything interesting to the worker anyway; US company for the web tier unless configured carefully | USD 20 plus worker host | Medium | Medium | Documented as later web-tier option |
 
-Decision: Hetzner VPS, stateless, with Supabase holding all state.
+Decision: Cloudflare-native, stateless code, with D1 and R2 (both `jurisdiction=eu`) holding all state.
 
 **Database and storage.**
 
 | Option | Pros | Cons | Cost per month | Complexity | Fit | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| Supabase Pro (EU) | Postgres plus storage plus backups in one EU-region vendor; free tier for dev | Always-on compute billing; one more dashboard | USD 25 | Low | High | **Chosen** |
-| Neon (EU) plus Cloudflare R2 | Scale-to-zero Postgres, branching | Two vendors, two DPAs; storage region pinning to verify | USD 0 to 25 plus R2 | Medium | Medium-high | No, but viable |
-| Self-hosted Postgres plus MinIO on Hetzner | Cheapest, full residency control | Founder owns backups, upgrades, and disaster recovery; worst failure mode for a solo operator | EUR ~10 extra | High | Low-medium | No |
-| AWS RDS plus S3 (eu-central) | Battle-tested | Cost, console complexity, egress pricing | USD 50 plus | High | Low | No |
+| Cloudflare D1 plus R2, both `jurisdiction=eu` | One vendor for everything; jurisdictions are residency guarantees; Time Travel PITR; zero ops; same database family as moola | SQLite semantics (no interactive transactions, 10 GB cap); fewer Postgres conveniences | Included plus usage | Low | High | **Chosen (ADR 0002)** |
+| Supabase Pro (EU) | Managed Postgres plus storage plus backups in one EU-region vendor | Second vendor and dashboard next to Cloudflare; always-on compute billing | USD 25 | Low | Medium-high | v1.0 choice; documented fallback if D1 limits bite |
+| Neon (EU) plus R2 | Scale-to-zero Postgres, branching | Two vendors, two DPAs | USD 0 to 25 | Medium | Medium | No |
+| Self-hosted Postgres plus MinIO | Cheapest, full residency control | Founder owns backups, upgrades, and disaster recovery; worst failure mode for a solo operator | EUR ~10 | High | Low | No |
 
-Decision: Supabase Pro in an EU region (prefer Zurich eu-central-2 if offered at creation, else Frankfurt; record the choice in sales materials per the PRD open question).
+Decision: D1 and R2 created with `jurisdiction=eu`; the jurisdiction is stated explicitly in sales and privacy materials (resolves open decision D-01).
 
 **Auth.**
 
 | Option | Pros | Cons | Cost | Complexity | Fit | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| Better Auth (self-hosted library) | Auth data stays in our EU Postgres; free; invitations and magic links built in | We operate it; security responsibility | Free | Medium | High | **Chosen** |
-| Supabase Auth | Bundled, free tier generous | Couples app to GoTrue patterns and RLS we are not using; user data in a second system of record | Free-ish | Low-medium | Medium | No |
+| Moola's auth pattern, ported (magic-link only, signed sessions, store interfaces on D1) | Proven and founder-reviewed in moola; no passwords stored (no credential stuffing surface); zero dependencies; identical security model across both products | We write and own invites/roles on top; magic-link-only UX | Free | Medium | High | **Chosen (ADR 0002, founder decision)** |
+| Better Auth (self-hosted library) | Invitations, roles, and passwords built in; native D1 support | A dependency to learn and track; diverges from moola exactly where consistency matters most (security) | Free | Medium | Medium-high | v1.0 choice; revisit if auth feature needs outgrow the pattern |
 | Clerk / Auth0 | Polished, fast | US subprocessors holding all user PII; per-MAU pricing; weakens the privacy pitch | USD 0 to 25 plus | Low | Low-medium | No |
 
-Decision: Better Auth, with rate limiting and the auth test suite in Section 20 as the safety net.
+Decision: port the moola pattern, with rate limiting and the auth test suite in Section 20 as the safety net. PRD US-002 explicitly allows a magic-link flow.
 
 **Payments.**
 
@@ -302,8 +301,8 @@ Decision: Stripe. Swiss VAT note: registration becomes mandatory at CHF 100,000 
 
 | Option | Pros | Cons | Fit | Recommendation |
 | --- | --- | --- | --- | --- |
-| Monolith plus worker (chosen) | One repo, one deploy, queue in Postgres | Worker and web share release cadence | High | **Chosen** |
-| Serverless functions plus managed queue | No servers | Timeouts vs multi-minute jobs; Chromium rendering awkward; cost opacity | Low | No |
+| App plus pipeline Worker on Cloudflare (Workflows, Container) | One repo, no servers, durable pipeline with built-in retries, heavy work isolated in the Container | Platform-specific orchestration APIs; steps kept as plain functions for portability | High | **Chosen (ADR 0002)** |
+| Monolith plus long-running worker on a VPS | Full control, simple mental model | A second platform to operate next to moola; VM ops and SPOF | Medium-high | v1.0 choice; documented fallback |
 | Separate API service plus SPA | Clear separation | More glue, no benefit at this size | Low-medium | No |
 
 **Mobile versus web.** Web only. The PRD marks mobile as out of scope; the personas work at desks with large documents. Responsive layout for tablet reading is sufficient.
@@ -312,11 +311,11 @@ Decision: Stripe. Swiss VAT note: registration becomes mandatory at CHF 100,000 
 
 | Capability | Decision | Reasoning |
 | --- | --- | --- |
-| Auth | Build (library-assisted) | Residency and cost; Better Auth does the heavy lifting |
+| Auth | Build (moola pattern ported) | Residency, cost, and one security model across both products |
 | Billing | Buy (Stripe) | Never hand-roll card handling |
 | OCR | Buy (Mistral OCR) | Specialist model, trivially cheap at our volume |
 | Extraction | Build on Claude API | This is the product; prompts, citation verification, and the eval set are the moat |
-| PDF export | Build (Chromium render) | Template control and disclaimer fidelity |
+| PDF export | Build templates, buy rendering (Browser Rendering API) | Template control and disclaimer fidelity without hosting Chromium |
 | Admin console | Build minimal in-app | Off-the-shelf admin tools want broad DB access, which violates the metadata-first rule |
 | Uptime monitoring | Buy free tier (e.g. UptimeRobot or Better Stack free) | Zero effort |
 | Notice metadata | Use official public SIMAP API read-only | Terms-compliant path; no scraping |
@@ -329,16 +328,15 @@ Decision: Stripe. Swiss VAT note: registration becomes mandatory at CHF 100,000 
 
 | Item | MVP (pilot) | Paid launch | Growth (~100 workspaces) | Source |
 | --- | --- | --- | --- | --- |
-| Hetzner VPS (CX32 class) | EUR 7 | EUR 7 to 17 | EUR 17 to 35 | [hetzner.com](https://www.hetzner.com/cloud/), note April 2026 price adjustment |
-| Supabase | USD 0 (free tier acceptable for pilots if data volume is small) to 25 | USD 25 | USD 35 to 60 (compute upgrade, PITR add-on) | [supabase.com/pricing](https://supabase.com/pricing) |
+| Cloudflare Workers Paid (includes Workflows, Queues, Containers, Browser Rendering allotments) | USD 5 | USD 5 | USD 5 | [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/) |
+| D1, R2, Containers, Browser Rendering usage beyond allotments | USD 0 to 5 | USD 5 to 20 | USD 20 to 60 | usage-based; pipeline volume driven |
 | Resend | USD 0 | USD 0 to 20 | USD 20 | [resend.com/pricing](https://resend.com/pricing) |
 | Plausible | USD 0 (start after marketing site launch) | USD 9 | USD 9 to 19 | [plausible.io](https://plausible.io/) |
-| Sentry | USD 0 (developer tier) | USD 0 to ~26 | ~USD 26 | [sentry.io/pricing](https://sentry.io/pricing), verify |
 | Domain plus DNS | ~CHF 1 to 2 amortized | same | same | registrar |
 | Stripe fixed | USD 0 (per-transaction only) | 0 | 0 | [stripe.com/en-ch/pricing](https://stripe.com/en-ch/pricing) |
 | GitHub | USD 0 | 0 | 0 to 4 | github.com |
 | Uptime monitoring | USD 0 | 0 | 0 to 10 | free tiers |
-| **Fixed subtotal** | **~CHF 10 to 40** | **~CHF 60 to 110** | **~CHF 110 to 180** | |
+| **Fixed subtotal** | **~CHF 7 to 15** | **~CHF 20 to 55** | **~CHF 55 to 120** | |
 
 **Variable AI cost per dossier.** Assumptions: a typical dossier is a notice plus 3 to 8 PDFs totaling 60 to 250 pages; roughly 500 tokens per page; pipeline makes one Haiku triage pass over everything and Sonnet extraction passes over the relevant 40 to 60% of pages, plus a verification pass; output ~10k to 25k tokens total; prompt caching covers the large shared system prompt.
 
@@ -354,17 +352,17 @@ At plan limits (Solo: 20 active dossiers), a heavy Solo user could in theory gen
 
 | Stage | Active paying customers | Fixed | Variable (AI, email, storage) | Total | Cost per customer |
 | --- | --- | --- | --- | --- | --- |
-| MVP pilots | 5 (unpaid or paid pilots) | CHF 40 | CHF 20 to 60 | CHF 60 to 100 | n/a |
-| Paid launch | 10 to 20 | CHF 100 | CHF 50 to 200 | CHF 150 to 300 | CHF 8 to 20 |
-| Growth | 80 to 120 | CHF 160 | CHF 300 to 900 | CHF 450 to 1,050 | CHF 5 to 10 |
+| MVP pilots | 5 (unpaid or paid pilots) | CHF 15 | CHF 20 to 60 | CHF 35 to 75 | n/a |
+| Paid launch | 10 to 20 | CHF 40 | CHF 50 to 200 | CHF 90 to 240 | CHF 6 to 15 |
+| Growth | 80 to 120 | CHF 100 | CHF 300 to 900 | CHF 400 to 1,000 | CHF 4 to 9 |
 
-**Main cost risks.** Whale users running many large scanned dossiers (mitigated by quotas); LLM price increases (mitigated by provider abstraction and the batch API); Supabase egress if exports are downloaded heavily (mitigated by export expiry); Stripe fee stack on small monthly amounts (2.9% plus CHF 0.30 plus 0.7% Billing is roughly CHF 3 on a CHF 69 charge, about 4.5%; annual billing reduces the fixed-fee share).
+**Main cost risks.** Whale users running many large scanned dossiers (mitigated by quotas); LLM price increases (mitigated by provider abstraction and the batch API); Container compute if parsing volume spikes (mitigated by page caps and active-CPU billing); Stripe fee stack on small monthly amounts (2.9% plus CHF 0.30 plus 0.7% Billing is roughly CHF 3 on a CHF 69 charge, about 4.5%; annual billing reduces the fixed-fee share).
 
-**Free-tier dependencies.** Resend, Sentry, GitHub Actions, uptime monitoring, and Supabase free tier during development. None is load-bearing at paid launch except Resend, which has a cheap paid step.
+**Free-tier dependencies.** Resend, GitHub Actions, and uptime monitoring. None is load-bearing at paid launch except Resend, which has a cheap paid step.
 
-**Vendor lock-in.** Lowest for Hetzner (plain containers) and Postgres (standard SQL). Moderate for Stripe (webhooks and customer objects; entitlements stay vendor-neutral in our DB). Moderate for Claude (prompts are portable; the eval set makes provider swaps measurable). Supabase is plain Postgres plus S3-compatible storage, deliberately used without proprietary features (no RLS dependence, no edge functions).
+**Vendor lock-in.** The deliberate concentration is Cloudflare: Workflows and Containers are platform APIs, but pipeline steps are plain functions, the database is standard SQLite, and storage is S3-compatible, so the documented Hetzner plus Supabase fallback (Section 8) is a real escape path. Moderate for Stripe (webhooks and customer objects; entitlements stay vendor-neutral in our DB). Moderate for Claude (prompts are portable; the eval set makes provider swaps measurable).
 
-**When paid plans become necessary.** Supabase Pro at first real customer data (backup guarantees); Plausible at marketing launch; Resend Pro and Sentry paid only when volume forces it.
+**When paid plans become necessary.** Workers Paid (USD 5) from day one (Containers and Workflows require it); Plausible at marketing launch; Resend Pro only when volume forces it.
 
 ---
 
@@ -374,27 +372,27 @@ The PRD's domain objects map cleanly to a relational model. Entities below; fiel
 
 | Entity | Purpose | Main fields | Relationships | Ownership | Storage | Sensitivity | Lifecycle states | Validation highlights | Versioning |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| User | Login identity | id, email, name, locale, role hints | belongs to workspaces via membership | Individual | Postgres | Medium (PII) | invited, active, suspended, deleted | unique email, verified email before workspace actions | No |
-| Workspace | Company tenant and billing unit | id, name, working_language, plan, billing_status, stripe_customer_id | has memberships, profile, dossiers, evidence, exports, events | Customer | Postgres | High | trial, active, grace, canceled, deleted | name required; one owner minimum | No |
-| Membership | User-workspace link with role | user_id, workspace_id, role (owner, member), invited_by | join table | Workspace | Postgres | Medium | invited, active, removed | role enum; last owner cannot be removed | No |
-| CompanyProfile | Qualification baseline | capability_tags[], regions[], languages[], certifications[], exclusions[] | one per workspace | Workspace | Postgres | Medium | draft, active | tags from controlled vocabulary plus free text | Yes, profile_version on each save; analyses record the version used |
-| TenderSourceItem | Official notice reference | simap_url, notice_id, authority, title, procedure_type, publication_date, raw_source jsonb, fetched_at | one per dossier (shared if duplicated) | System | Postgres | Low-medium | imported, stale, archived | URL must match SIMAP pattern; raw_source stored verbatim, never edited (LEG-002) | fetched snapshots appended, not overwritten |
-| Dossier | The tender case | workspace_id, source_item_id, title, status, current_analysis_version | has files, analyses, findings, tasks, decision, exports | Workspace | Postgres | High | draft, processing, ready, needs_review, failed, archived | one active processing run at a time | via AnalysisRun |
-| UploadedFile | Tender doc or evidence file | filename, mime, size, sha256, category, scan_status, parse_status, page_count | belongs to dossier or evidence item | Workspace | Storage (binary) plus Postgres row | High | uploaded, scanning, processed, unsupported, failed, deleted | size cap 50 MB, type sniffed not trusted, ClamAV pass required before parsing | replaced files create new rows |
-| AnalysisRun | One pipeline execution | dossier_id, version, model_ids, prompt_version, status, started_at, cost_cents, token_counts | has findings | System | Postgres | Medium | queued, running, partial, complete, failed | one per re-analysis; never mutates earlier runs (PRD versioning rule) | This is the version mechanism |
-| Finding | Extracted item | run_id, type (blocker, deadline, criterion, evidence_request, lot, qa_window, other), severity, statement, confidence (high, medium, low), status (open, confirmed, dismissed), citation_id | belongs to run; optional link to ChecklistTask | System, user-editable status | Postgres | Medium | open, confirmed, dismissed | statement length caps; type and confidence enums; material findings require citation_id or explicit `unsupported=true` (ANA-003/005) | runs are immutable; edits create FindingFeedback rows |
-| Citation | Source anchor | file_id (nullable for notice fields), locator (page, char offsets or notice field path), excerpt_text, excerpt_hash | belongs to finding | System | Postgres | Medium-high (contains source excerpts) | n/a | excerpt must verify against the stored extraction text at creation (anti-hallucination check) | No |
-| DeadlineEvent | Date the team must track | dossier_id, label, date, source citation, confidence, state | derived from findings | System | Postgres | Medium | upcoming, passed, changed | timezone Europe/Zurich; conflicting dates produce two events flagged disputed | No |
-| ChecklistTask | Action item | dossier_id, title, owner_user_id, due_date, status, linked_finding_id | links to EvidenceItems | Workspace | Postgres | Medium | open, in_progress, done, blocked | title required | No |
-| EvidenceItem | Reusable proof | workspace_id, title, type (reference, certification, declaration, cv, insurance, other), tags[], validity_date, file_id | linked to tasks across dossiers | Workspace | Postgres plus Storage | High (CVs etc.) | active, expired, archived | type enum; upload-authority acknowledgment recorded on first evidence upload (consent gate) | replaced files versioned |
-| DecisionRecord | Bid, Pass, Hold | dossier_id, status, rationale, decided_by, decided_at | one current per dossier, history kept | Workspace | Postgres | Medium | undecided, bid, pass, hold | rationale required for bid and pass | append-only history (DEC-002) |
-| Export | Generated brief | dossier_id, format (pdf, csv, json), file_id, generated_at, expires_at | belongs to dossier | Workspace | Storage plus Postgres | Medium | ready, expired | includes disclaimer block; expiry default 30 days | regenerate creates new row |
-| SubscriptionPlan / Entitlements | Commercial limits | plan key, limits jsonb (users, active_dossiers, analyses_per_month, evidence_items, storage_gb) | attached to workspace | System | Postgres (config rows) | Low | n/a | limits enforced centrally in `services/entitlements` | flags table for config changes (ENT-001) |
-| AuditEvent | Sensitive-action record | actor, action, object_type, object_id, reason, created_at | cross-cutting | System | Postgres, append-only | Medium | immutable | inserts only; no update or delete grants | n/a |
-| ProductEvent | Analytics event | workspace_id, user_id (nullable), event_name, properties jsonb (metadata only), created_at | n/a | System | Postgres | Low | n/a | event_name from the approved list in Section 19; properties schema-checked to exclude content fields | n/a |
-| SupportCase | Operator queue item | workspace_id, type, severity, status, notes | links to audit events | Operator | Postgres | Medium | open, in_review, resolved | n/a | No |
+| User | Login identity | id, email, name, locale, role hints | belongs to workspaces via membership | Individual | D1 | Medium (PII) | invited, active, suspended, deleted | unique email, verified email before workspace actions | No |
+| Workspace | Company tenant and billing unit | id, name, working_language, plan, billing_status, stripe_customer_id | has memberships, profile, dossiers, evidence, exports, events | Customer | D1 | High | trial, active, grace, canceled, deleted | name required; one owner minimum | No |
+| Membership | User-workspace link with role | user_id, workspace_id, role (owner, member), invited_by | join table | Workspace | D1 | Medium | invited, active, removed | role enum; last owner cannot be removed | No |
+| CompanyProfile | Qualification baseline | capability_tags[], regions[], languages[], certifications[], exclusions[] | one per workspace | Workspace | D1 | Medium | draft, active | tags from controlled vocabulary plus free text | Yes, profile_version on each save; analyses record the version used |
+| TenderSourceItem | Official notice reference | simap_url, notice_id, authority, title, procedure_type, publication_date, raw_source jsonb, fetched_at | one per dossier (shared if duplicated) | System | D1 | Low-medium | imported, stale, archived | URL must match SIMAP pattern; raw_source stored verbatim, never edited (LEG-002) | fetched snapshots appended, not overwritten |
+| Dossier | The tender case | workspace_id, source_item_id, title, status, current_analysis_version | has files, analyses, findings, tasks, decision, exports | Workspace | D1 | High | draft, processing, ready, needs_review, failed, archived | one active processing run at a time | via AnalysisRun |
+| UploadedFile | Tender doc or evidence file | filename, mime, size, sha256, category, scan_status, parse_status, page_count | belongs to dossier or evidence item | Workspace | R2 (binary) plus D1 row | High | uploaded, scanning, processed, unsupported, failed, deleted | size cap 50 MB, type sniffed not trusted, ClamAV pass required before parsing | replaced files create new rows |
+| AnalysisRun | One pipeline execution | dossier_id, version, model_ids, prompt_version, status, started_at, cost_cents, token_counts | has findings | System | D1 | Medium | queued, running, partial, complete, failed | one per re-analysis; never mutates earlier runs (PRD versioning rule) | This is the version mechanism |
+| Finding | Extracted item | run_id, type (blocker, deadline, criterion, evidence_request, lot, qa_window, other), severity, statement, confidence (high, medium, low), status (open, confirmed, dismissed), citation_id | belongs to run; optional link to ChecklistTask | System, user-editable status | D1 | Medium | open, confirmed, dismissed | statement length caps; type and confidence enums; material findings require citation_id or explicit `unsupported=true` (ANA-003/005) | runs are immutable; edits create FindingFeedback rows |
+| Citation | Source anchor | file_id (nullable for notice fields), locator (page, char offsets or notice field path), excerpt_text, excerpt_hash | belongs to finding | System | D1 | Medium-high (contains source excerpts) | n/a | excerpt must verify against the stored extraction text at creation (anti-hallucination check) | No |
+| DeadlineEvent | Date the team must track | dossier_id, label, date, source citation, confidence, state | derived from findings | System | D1 | Medium | upcoming, passed, changed | timezone Europe/Zurich; conflicting dates produce two events flagged disputed | No |
+| ChecklistTask | Action item | dossier_id, title, owner_user_id, due_date, status, linked_finding_id | links to EvidenceItems | Workspace | D1 | Medium | open, in_progress, done, blocked | title required | No |
+| EvidenceItem | Reusable proof | workspace_id, title, type (reference, certification, declaration, cv, insurance, other), tags[], validity_date, file_id | linked to tasks across dossiers | Workspace | D1 plus R2 | High (CVs etc.) | active, expired, archived | type enum; upload-authority acknowledgment recorded on first evidence upload (consent gate) | replaced files versioned |
+| DecisionRecord | Bid, Pass, Hold | dossier_id, status, rationale, decided_by, decided_at | one current per dossier, history kept | Workspace | D1 | Medium | undecided, bid, pass, hold | rationale required for bid and pass | append-only history (DEC-002) |
+| Export | Generated brief | dossier_id, format (pdf, csv, json), file_id, generated_at, expires_at | belongs to dossier | Workspace | R2 plus D1 | Medium | ready, expired | includes disclaimer block; expiry default 30 days | regenerate creates new row |
+| SubscriptionPlan / Entitlements | Commercial limits | plan key, limits jsonb (users, active_dossiers, analyses_per_month, evidence_items, storage_gb) | attached to workspace | System | D1 (config rows) | Low | n/a | limits enforced centrally in `services/entitlements` | flags table for config changes (ENT-001) |
+| AuditEvent | Sensitive-action record | actor, action, object_type, object_id, reason, created_at | cross-cutting | System | D1, append-only | Medium | immutable | inserts only; no update or delete grants | n/a |
+| ProductEvent | Analytics event | workspace_id, user_id (nullable), event_name, properties jsonb (metadata only), created_at | n/a | System | D1 | Low | n/a | event_name from the approved list in Section 19; properties schema-checked to exclude content fields | n/a |
+| SupportCase | Operator queue item | workspace_id, type, severity, status, notes | links to audit events | Operator | D1 | Medium | open, in_review, resolved | n/a | No |
 
-**Suggested database tables.** One table per entity above, snake_case, plus pg-boss's own schema, `flags`, and Better Auth's tables (users, sessions, accounts, verification). Multi-tenancy by `workspace_id` column on every tenant-owned table with composite indexes `(workspace_id, ...)`. All access goes through repository functions that require a workspace context; an ESLint rule forbids importing the Drizzle client outside `src/server/repositories`.
+**Suggested database tables.** One table per entity above, snake_case, plus `flags` and the auth tables following the moola pattern (users, sessions, magic_link_tokens, invitations). Workflow state is platform-managed; there are no queue tables. Multi-tenancy by `workspace_id` column on every tenant-owned table with composite indexes `(workspace_id, ...)`. All access goes through repository functions that require a workspace context; an ESLint rule forbids importing the Drizzle client outside `src/server/repositories`.
 
 **Suggested JSON export shape (dossier export, also the portability format).**
 
@@ -417,7 +415,7 @@ The PRD's domain objects map cleanly to a relational model. Entities below; fiel
 }
 ```
 
-**Migration and versioning strategy.** drizzle-kit SQL migrations, committed and applied in CI before deploy; every migration reversible or explicitly marked destructive with a backup gate; `schema_version` in exports; AnalysisRun versioning isolates extraction changes from data migrations; prompt templates carry a `prompt_version` recorded on each run so quality regressions are attributable.
+**Migration and versioning strategy.** drizzle-kit SQL migrations, committed and applied in CI with `wrangler d1 migrations apply` before deploy; every migration reversible or explicitly marked destructive with a backup gate (D1 Time Travel bookmark taken first); `schema_version` in exports; AnalysisRun versioning isolates extraction changes from data migrations; prompt templates carry a `prompt_version` recorded on each run so quality regressions are attributable.
 
 ---
 
@@ -425,16 +423,16 @@ The PRD's domain objects map cleanly to a relational model. Entities below; fiel
 
 | Data category | Examples | Stored where | Access | Retention | Protection | In backups | Shared with third parties | Deletion |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| User account data | email, name, password hash | Postgres (EU) | The user; support sees metadata | Account lifetime plus 30 days | TLS, encryption at rest, hashed passwords (argon2) | Yes | Stripe (email for billing), Resend (email address) | Account deletion flow, cascades memberships |
-| Workspace business data | profile, dossiers, findings, decisions, tasks | Postgres (EU) | Workspace members via RBAC | Workspace lifetime; 30 days read-only after cancellation, then delete (PRD default) | Same | Yes | None | Workspace deletion flow |
-| Uploaded documents | tender PDFs, evidence files | Supabase Storage (EU), private buckets | Workspace members; admin only via break-glass | Same as workspace; user can delete individual files anytime | Encrypted at rest, signed URLs (short TTL), ClamAV scan before processing | Yes (storage replication per Supabase) | Claude API and Mistral OCR receive extracted text or page images transiently for analysis; both disclosed as subprocessors; no training (Anthropic commercial terms; verify Mistral ToS clause before launch) | File delete removes object plus extraction text plus derived citations' excerpts where the file was the source |
-| Official SIMAP data | notice metadata snapshots | Postgres, `raw_source` verbatim | Workspace members read-only | Kept while dossier exists | Displayed unmodified with disclaimer (LEG-001/002) | Yes | n/a (public data, subject to SIMAP terms) | With dossier |
-| System-generated analysis | extraction text, findings, citations, runs | Postgres | Workspace members | With dossier | Same as business data | Yes | No | With dossier or file |
-| Analytics data | ProductEvents (metadata only), Plausible pageviews | Postgres; Plausible EU | Founder | 24 months, then aggregate | No content fields by schema | Yes (events) | Plausible (cookieless, aggregated) | Not user-correlated after deletion (user_id nulled) |
-| Logs | request logs, job logs, error events | VPS local (14-day rotation), Sentry | Founder | 14 days local; Sentry per plan | Logger redacts content fields by allowlist; Sentry `beforeSend` scrubber | No | Sentry (scrubbed) | Rotation |
-| Backups | Supabase daily backups (PITR optional add-on) | Supabase EU | Founder only | 7 days default on Pro; verify and document | Vendor-encrypted | n/a | No | Deleted data leaves backups on the vendor rotation schedule; stated in privacy policy |
-| Exports | PDF, CSV, JSON, ZIP bundles | Storage, expiring | Requesting member | 30 days then auto-delete | Signed URLs | No (regenerable) | No | Auto-expiry job |
-| Billing data | subscription state, invoices | Stripe plus mirrored status in Postgres | Owner; founder | Per Stripe and bookkeeping law (CH: 10 years for accounting records, kept at Stripe and in accounting exports, not in app DB) | Stripe-managed | Status only | Stripe | Stripe data subject process plus our mirror cleanup |
+| User account data | email, name (no passwords exist; magic-link auth) | D1 (`jurisdiction=eu`) | The user; support sees metadata | Account lifetime plus 30 days | TLS, encryption at rest, hashed single-use tokens | Yes | Stripe (email for billing), Resend (email address) | Account deletion flow, cascades memberships |
+| Workspace business data | profile, dossiers, findings, decisions, tasks | D1 (`jurisdiction=eu`) | Workspace members via RBAC | Workspace lifetime; 30 days read-only after cancellation, then delete (PRD default) | Same | Yes | None | Workspace deletion flow |
+| Uploaded documents | tender PDFs, evidence files | R2 (`jurisdiction=eu`), private bucket | Workspace members; admin only via break-glass | Same as workspace; user can delete individual files anytime | Encrypted at rest, presigned URLs (short TTL), ClamAV scan before processing | Yes (scheduled backup copies) | Claude API and Mistral OCR receive extracted text or page images transiently for analysis; both disclosed as subprocessors; no training (Anthropic commercial terms; verify Mistral ToS clause before launch) | File delete removes object plus extraction text plus derived citations' excerpts where the file was the source |
+| Official SIMAP data | notice metadata snapshots | D1, `raw_source` verbatim | Workspace members read-only | Kept while dossier exists | Displayed unmodified with disclaimer (LEG-001/002) | Yes | n/a (public data, subject to SIMAP terms) | With dossier |
+| System-generated analysis | extraction text, findings, citations, runs | D1 | Workspace members | With dossier | Same as business data | Yes | No | With dossier or file |
+| Analytics data | ProductEvents (metadata only), Plausible pageviews | D1; Plausible EU | Founder | 24 months, then aggregate | No content fields by schema | Yes (events) | Plausible (cookieless, aggregated) | Not user-correlated after deletion (user_id nulled) |
+| Logs | request logs, job logs, error events | Workers Logs (platform) | Founder | Days (platform retention); durable failure records live in the admin failure queue in D1 | Logger redacts content fields by allowlist; no error-tracking SaaS at MVP | No | No | Platform rotation |
+| Backups | D1 Time Travel (30-day PITR) plus scheduled D1 export to R2 | Cloudflare EU | Founder only | 30 days Time Travel; export rotation documented in the runbook | Vendor-encrypted | n/a | No | Deleted data leaves backups on the rotation schedule; stated in privacy policy |
+| Exports | PDF, CSV, JSON, ZIP bundles | R2, expiring | Requesting member | 30 days then auto-delete | Presigned URLs | No (regenerable) | No | Auto-expiry job |
+| Billing data | subscription state, invoices | Stripe plus mirrored status in D1 | Owner; founder | Per Stripe and bookkeeping law (CH: 10 years for accounting records, kept at Stripe and in accounting exports, not in app DB) | Stripe-managed | Status only | Stripe | Stripe data subject process plus our mirror cleanup |
 
 **Data flow for one dossier.**
 
@@ -445,7 +443,7 @@ flowchart LR
   C --> D[ClamAV scan]
   D --> E[Native text extraction PDF and DOCX]
   E -->|text too sparse| F[Mistral OCR per page]
-  E --> G[Normalized extraction text with page anchors in Postgres]
+  E --> G[Normalized extraction text with page anchors in D1]
   F --> G
   G --> H[Haiku triage: relevant sections, language, doc type]
   H --> I[Sonnet extraction: findings with quoted excerpts]
@@ -467,72 +465,70 @@ flowchart LR
 | Risk | Mitigation | Requirement | Priority | Verification |
 | --- | --- | --- | --- | --- |
 | Cross-tenant data access | Central authz module; every repository function takes a verified workspace context; composite-key queries | No query on tenant tables without workspace_id | P0 | Authorization test suite: every API route tested with a foreign-workspace session (must 403/404) |
-| Credential attacks | Argon2 hashing, rate limits on auth endpoints, breach-password check, optional TOTP post-MVP | Lockout and rate-limit on login, reset, magic link | P0 | Automated tests plus manual probe |
-| Malicious uploads | ClamAV scan before parsing; type sniffing; parsers run in the worker, not the web process; size caps | No file parsed before scan passes | P0 | EICAR test file in CI |
-| Document content leaking into logs | Allowlist logger (only known-safe fields serialized); Sentry beforeSend scrubber | NFR-PRIV-002 | P0 | Unit test asserting redaction; log review in pilot |
+| Credential attacks | No passwords exist (magic-link only, moola pattern); tokens are single-use, short-expiry, stored hashed; rate limits on auth endpoints | Rate-limit on magic-link request and verify; session revocation | P0 | Automated tests plus manual probe |
+| Malicious uploads | ClamAV scan before parsing; type sniffing; parsers run in the Container, not the web tier; size caps | No file parsed before scan passes | P0 | EICAR test file in CI |
+| Document content leaking into logs | Allowlist logger (only known-safe fields serialized); no error-tracking SaaS at MVP | NFR-PRIV-002 | P0 | Unit test asserting redaction; log review in pilot |
 | LLM prompt data exposure | Only extraction text sent, never account PII; Anthropic no-training default; subprocessor disclosure; EU-endpoint option documented | SEC-002 | P0 | Policy page review; contract check |
 | Hallucinated findings | Citation verification step: excerpt must literally match stored extraction text or the finding is downgraded to unsupported | ANA-003/005 | P0 | Pipeline unit tests plus eval set |
 | Admin overreach | Metadata-first admin; break-glass requires reason, scope, TTL, audit event, and email notice to workspace owner (post-MVP for the notice) | ADM-002/003 | P0 admin defaults, P1 break-glass | Admin E2E test |
 | Webhook forgery | Stripe signature verification, idempotency keys, replay window | All webhooks verified | P0 | Stripe CLI tests |
-| Secrets leakage | Secrets only in VPS env files and GitHub encrypted secrets; never in repo; quarterly rotation runbook | gitleaks in CI | P0 | CI check |
-| Session attacks | HttpOnly Secure SameSite=Lax cookies, CSRF protection on mutations, session revocation on password change | Better Auth defaults verified | P0 | E2E tests |
-| Backup loss or untested restore | Supabase daily backups; monthly restore drill into a scratch project; runbook | NFR-BK-001 | P1 | Calendar-driven drill with checklist |
+| Secrets leakage | Secrets only in wrangler secrets and GitHub encrypted secrets; never in repo; quarterly rotation runbook | gitleaks in CI | P0 | CI check |
+| Session attacks | HttpOnly Secure SameSite=Lax cookies (HMAC-SHA256 signed, moola pattern), CSRF protection on mutations, session revocation on email change | Session primitives unit-tested as in moola | P0 | E2E tests |
+| Backup loss or untested restore | D1 Time Travel plus scheduled export to R2; monthly restore drill into a scratch database; runbook | NFR-BK-001 | P1 | Calendar-driven drill with checklist |
 | Abuse (trial farming, scraping our API) | Email verification, per-IP and per-account rate limits, analysis quotas, no public API | Quotas in entitlements | P1 | Rate-limit tests |
 | Incident response | One-page IR plan: detect, contain (revoke keys, disable workspace), assess FADP breach-notification duty, notify, postmortem | Documented before paid launch | P1 | Tabletop walk-through once |
 | FADP rights requests | Self-service export and deletion; identity verification; 30-day SLA tracking via SupportCase | LEG-006, SEC-001 | P0 | E2E export and deletion tests |
 | Consent for evidence uploads | Explicit upload-authority acknowledgment recorded with timestamp on first evidence upload | PRD consent gate | P0 | E2E test |
 | Competition-law exposure | No features reading or comparing other bidders' prices; code review rule; prohibited-feature list in CLAUDE.md | LEG-005 | P0 | Feature review |
 
-**Encryption.** TLS 1.2 plus everywhere (Caddy-managed certificates); Supabase encrypts Postgres and Storage at rest; no additional application-layer encryption at MVP (documented trade-off: searchability and simplicity over defense against a vendor-level breach; revisit for Enterprise plan with per-workspace keys).
+**Encryption.** TLS 1.2 plus everywhere (Cloudflare-managed certificates); Cloudflare encrypts D1 and R2 at rest; no additional application-layer encryption at MVP (documented trade-off: searchability and simplicity over defense against a vendor-level breach; revisit for Enterprise plan with per-workspace keys).
 
-**Compliance posture.** FADP-first: privacy policy, DPA template for business customers, subprocessor list (Supabase/AWS EU, Hetzner DE, Anthropic US, Mistral FR, Stripe, Resend US, Sentry US, Plausible EU), records of processing activities (a simple maintained document), breach-notification awareness. GDPR review is required only before deliberately targeting EU customers (PRD P2). No SOC 2 or ISO 27001 at this stage; publish an honest security page instead.
+**Compliance posture.** FADP-first: privacy policy, DPA template for business customers, subprocessor list (Cloudflare US company with `jurisdiction=eu` data residency for D1 and R2, Anthropic US, Mistral FR, Stripe, Resend US, Plausible EU), records of processing activities (a simple maintained document), breach-notification awareness. GDPR review is required only before deliberately targeting EU customers (PRD P2). No SOC 2 or ISO 27001 at this stage; publish an honest security page instead.
 
 ---
 
 ## 13. Application architecture
 
-Monorepo with pnpm workspaces.
+A single Next.js application with bounded `src/` folders enforced by ESLint boundary rules, the same shape as moola (moola ADR 0001). No pnpm-workspaces monorepo: the pipeline Worker is a second wrangler config in the same repository, and shared code is plain imports within `src/`.
 
 ```
 bidroom/
-  apps/
-    web/                      # Next.js app: UI plus API routes
-      src/
-        app/                  # routes: (marketing)/ (app)/ (admin)/ api/
-        components/           # presentational and composed UI, no business logic
-        styles/
-      e2e/                    # Playwright tests
-    worker/                   # Node worker: pg-boss consumers
-      src/
-        jobs/                 # processDossier, extractFile, ocrFile, renderExport,
-                              # sendEmail, retentionCleanup, reminders
-        index.ts
-  packages/
+  src/
+    app/                      # Next.js routes: (marketing)/ (app)/ (admin)/ api/
+    components/               # presentational and composed UI, no business logic
     shared/                   # Zod schemas, types, constants, event names, plan limits
     domain/                   # pure business logic: qualification rules, checklist
                               # generation, deadline normalization, fit rationale shaping
-    server/                   # used by web and worker
-      auth/                   # Better Auth config
+    server/                   # used by web routes and the pipeline Worker
+      auth/                   # magic-link auth, sessions, invites (moola pattern)
       authz/                  # workspace context, role checks
-      repositories/           # ONLY place that touches Drizzle/Postgres
+      repositories/           # ONLY place that touches Drizzle/D1
       services/               # dossiers, findings, evidence, entitlements, billing,
                               # exports, privacy (export/delete), audit, flags
-      extraction/             # parsers (pdf, docx), ocr client, llm client, prompts/,
-                              # citationVerify, pipeline steps
-      integrations/           # simap client, stripe, resend, sentry helpers
+      extraction/             # ocr client, llm client, prompts/, citationVerify,
+                              # pipeline step functions (plain, portable)
+      integrations/           # simap client, stripe, resend, container client
       db/                     # drizzle schema plus migrations
+    pipeline/                 # pipeline Worker entry: Workflow definition,
+                              # queue consumers, cron handlers
+  container/                  # Dockerfile plus parsing service: pdf/docx parsers, ClamAV
+  messages/                   # typed dictionary catalogs (en first, de next)
+  e2e/                        # Playwright tests
+  scripts/                    # check-copy.mjs and friends (moola conventions)
   docs/
     adr/  setup.md  deployment.md  testing.md  security.md  privacy.md
     data-model.md  api.md  runbook.md  prompts.md
   .github/workflows/ci.yml
-  docker-compose.yml  Caddyfile  CLAUDE.md  README.md
+  wrangler.jsonc              # web app (OpenNext)
+  wrangler.pipeline.jsonc     # pipeline Worker: Workflow, Queues, Container binding
+  CLAUDE.md  README.md
 ```
 
 **Module boundaries and import rules (enforced with eslint-plugin-boundaries).**
-- `packages/domain` imports only `shared`. No React, no DB, no network. Fully unit-testable.
-- `packages/server/repositories` is the only module importing the Drizzle client.
-- `apps/web/src/components` must not import `server/*`; data arrives via server components, route handlers, or server actions that call `server/services`.
-- `apps/worker` imports `server` and `domain`, never `apps/web`.
+- `src/domain` imports only `src/shared`. No React, no DB, no network. Fully unit-testable.
+- `src/server/repositories` is the only module importing the Drizzle client.
+- `src/components` must not import `src/server/*`; data arrives via server components, route handlers, or server actions that call `server/services`.
+- `src/pipeline` imports `server` and `domain`, never `app` or `components`.
 - `extraction/prompts` are versioned text assets with a changelog; changing them requires re-running the eval set (Section 20).
 
 **Keeping the codebase clean as AI agents modify it.** The boundaries lint rule fails CI on violations; CLAUDE.md (Section 23) states the rules in plain language; repository functions and services have docblocks that state invariants (for example "caller must pass a WorkspaceContext from authz"); business logic in a component is treated as a review-blocking defect; shared Zod schemas prevent type drift between API, forms, and jobs because there is exactly one definition per shape.
@@ -545,7 +541,7 @@ All endpoints are internal product APIs (no public API in v1), under `/api`, JSO
 
 | Method | Path | Purpose | Auth | Request | Response | Errors | Priority |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| POST | /api/auth/* | Better Auth routes (signup, login, magic link, reset, verify) | Public, rate-limited | per library | session | invalid_credentials, rate_limited | P0 |
+| POST | /api/auth/* | Magic-link auth routes (request link, verify, logout; moola pattern) | Public, rate-limited | email or token | session | invalid_token, rate_limited | P0 |
 | POST | /api/workspaces | Create workspace | User | name, working_language | workspace | limit_reached | P0 |
 | POST | /api/workspaces/:id/invites | Invite member | Owner | email, role | invite | plan_limit, duplicate | P1 |
 | PUT | /api/workspaces/:id/profile | Save company profile | Member | profile fields | profile version | validation | P0 |
@@ -584,7 +580,7 @@ All endpoints are internal product APIs (no public API in v1), under `/api`, JSO
 
 **Design system.** Tailwind tokens: a restrained slate/blue palette, one accent for severity (blockers in a serious red, uncertainty in amber), system font stack or Inter, no gradients or mascots per brand guidance. Confidence and severity get both color and icon plus text label (never color alone, for accessibility).
 
-**State management.** Server components render reads; TanStack Query handles the few live areas (processing status polling at 3 second intervals while a run is active, checklist updates); react-hook-form plus Zod resolvers for forms. No global client store.
+**State management.** Server components render reads; Zustand holds the few client islands (same as moola), with a small polling hook for processing status (3 second intervals while a run is active) and checklist updates; react-hook-form plus Zod resolvers for forms. No query library, no global client store beyond the local Zustand slices.
 
 **Forms and validation.** Every form schema imported from `packages/shared`, so client and server validate identically. Server is authoritative.
 
@@ -592,7 +588,7 @@ All endpoints are internal product APIs (no public API in v1), under `/api`, JSO
 
 **Accessibility.** WCAG 2.1 AA on critical flows: semantic landmarks, labeled inputs, focus management in dialogs and the citation viewer (keyboard: enter opens citation, escape returns), contrast-checked tokens, axe-core checks in E2E for the five core screens.
 
-**Internationalization.** next-intl with an `en` catalog; all user-facing strings via message keys from day one; dates and numbers via Intl with Europe/Zurich defaults; source documents remain in their original language with the working-language summary clearly labeled as translation-adjacent analysis.
+**Internationalization.** Moola's typed dictionary pattern: an `en` catalog in `messages/` with a lightweight typed accessor; all user-facing strings via message keys from day one; dates and numbers via Intl with Europe/Zurich defaults; source documents remain in their original language with the working-language summary clearly labeled as translation-adjacent analysis.
 
 **SEO.** Marketing routes only: static rendering, metadata, sitemap, OG images. The app is noindex.
 
@@ -610,17 +606,17 @@ All endpoints are internal product APIs (no public API in v1), under `/api`, JSO
 
 **What the backend should not do.** No SIMAP polling or scheduled crawling; no storage of SIMAP credentials; no modification of source fields; no calls sending account PII to LLMs; no synchronous long work in request handlers (anything over ~2 seconds becomes a job).
 
-**Auth flows.** Email plus password with verification, magic link as alternative, password reset, workspace invites by email, session revocation on credential change. All built on Better Auth with our styling.
+**Auth flows.** Magic-link sign-in (no passwords, moola pattern): request link, verify single-use short-expiry token, signed httpOnly session cookie; workspace invites as signed single-use tokens by email; session revocation on email change or explicit logout-all. Built as our own testable modules (token primitives, store interfaces, rate limiter) following moola's reviewed implementation.
 
-**The pipeline (the heart of the system).** `processDossier(run_id)` orchestrates per-file fan-out jobs and a final assembly step:
-1. `scanFile`: ClamAV; fail closed.
-2. `extractFile`: native PDF/DOCX text with page anchors; compute chars-per-page; below threshold, mark pages for OCR.
+**The pipeline (the heart of the system).** `processDossier(run_id)` is a Cloudflare Workflow whose steps call plain, portable functions from `server/extraction`; per-file work fans out as parallel steps, then a final assembly step runs:
+1. `scanFile`: ClamAV in the Container; fail closed.
+2. `extractFile`: native PDF/DOCX text with page anchors in the Container; compute chars-per-page; below threshold, mark pages for OCR.
 3. `ocrFile`: Mistral OCR on flagged pages; merge into extraction text with anchors.
 4. `triageRun` (Haiku): document typing, language detection, relevance map of sections to extraction targets (eligibility, deadlines, criteria, evidence, lots, Q&A window).
 5. `extractFindings` (Sonnet): per target, prompt over the relevant sections requiring JSON findings with verbatim source quotes and locators; long inputs chunked with overlap; structured output parsed by Zod with one repair retry.
 6. `verifyCitations`: each quoted excerpt fuzzy-matched (normalized whitespace, threshold) against stored extraction text; non-matching findings downgraded to `unsupported` and flagged for review. This is the central anti-hallucination control.
 7. `assembleBrief`: dedupe findings across files, normalize deadlines (conflicts produce disputed pairs), generate checklist seeds, compose uncertainty notes, set run `complete` or `partial`, record token and cost accounting.
-Failure semantics: per-file failures mark that file failed and continue (NFR-REL-002); jobs are idempotent (keyed by run plus file plus step) with 3 retries and exponential backoff; a run-level timeout marks `failed` with an actionable reason and never invents results.
+Failure semantics: per-file failures mark that file failed and continue (NFR-REL-002); steps are idempotent (keyed by run plus file plus step) and use the Workflow's built-in retries with exponential backoff; a run-level timeout marks `failed` with an actionable reason and never invents results.
 
 **Payment flows, webhook handling.** Section 17.
 
@@ -628,13 +624,13 @@ Failure semantics: per-file failures mark that file failed and continue (NFR-REL
 
 **Data access.** Repositories only, workspace-scoped, as in Section 13.
 
-**Background jobs beyond the pipeline.** `renderExport`, `sendEmail`, `reminders` (paid launch: daily scan for deadlines within thresholds and stale dossiers), `retentionCleanup` (expired exports, canceled-workspace purges, soft-delete finalization), `restoreDrillReminder` (monthly founder nudge).
+**Background jobs beyond the pipeline.** `renderExport` (Browser Rendering), `sendEmail` (Queue consumer), `reminders` (paid launch: daily Cron scan for deadlines within thresholds and stale dossiers), `retentionCleanup` (Cron: expired exports, canceled-workspace purges, soft-delete finalization), `restoreDrillReminder` (monthly founder nudge).
 
-**Rate limiting.** Middleware token bucket per IP (auth, intake) and per workspace (analyze, export), limits defined in entitlements config.
+**Rate limiting.** KV-backed token bucket per IP (auth, intake) and per workspace (analyze, export), limits defined in entitlements config (the same approach moola plans for its production rate limiter).
 
-**Observability.** pino structured logs with request IDs; Sentry for exceptions; a `/api/health` endpoint exposing queue depth and oldest-job age; a tiny admin metrics page (runs per day, failure rate by category, median pipeline duration, AI cost per day) backed by SQL over AnalysisRun and ProductEvent.
+**Observability.** Structured allowlist logs with request IDs via Workers Logs; a `/api/health` endpoint exposing Workflow and queue health; a tiny admin metrics page (runs per day, failure rate by category, median pipeline duration, AI cost per day) backed by SQL over AnalysisRun and ProductEvent. Pipeline failures land in the admin failure queue with an error category; no error-tracking SaaS at MVP (ADR 0002).
 
-**Security controls.** As specified in Section 12, implemented centrally: authz module, allowlist logger, scrubbed Sentry, signed URLs, webhook verification, rate limits, audit writes in services that perform sensitive actions.
+**Security controls.** As specified in Section 12, implemented centrally: authz module, allowlist logger, presigned URLs, webhook verification, rate limits, audit writes in services that perform sensitive actions.
 
 ---
 
@@ -697,7 +693,7 @@ Product analytics are PRD-defined events only, stored as metadata in our `events
 | Extraction accuracy on the internal QA set (deadline accuracy target 95%) | Trust quality gate | internal eval data only, never customer content | None | P0 |
 | Not collected | n/a | document text, finding statements in analytics, IPs in product events, geolocation, cross-site identifiers | n/a | rule |
 
-Observability stack: Sentry (errors), `/api/health` plus external uptime ping every minute with alert to founder email and phone, pino logs on the VPS, the admin metrics page, and a weekly automated email digest (signups, dossiers, decisions, failures, AI spend). Alerts only for: site down, queue stalled (oldest job over 15 minutes), pipeline failure rate over 20% in an hour, daily AI spend over a configured cap, disk over 80%.
+Observability stack: `/api/health` plus external uptime ping every minute with alert to founder email and phone, Workers Logs, the admin metrics and failure-queue pages, and a weekly automated email digest (signups, dossiers, decisions, failures, AI spend). Alerts only for: site down, pipeline stalled (oldest run over 15 minutes), pipeline failure rate over 20% in an hour, daily AI spend over a configured cap.
 
 ---
 
@@ -706,7 +702,7 @@ Observability stack: Sentry (errors), `/api/health` plus external uptime ping ev
 | Test type | Tool | Scope | Required for MVP | When it runs | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Unit | Vitest | `domain/`, citation verification, deadline normalization, entitlements, Zod schemas, logger redaction | Yes | Every push | Fast, no network |
-| Integration | Vitest plus Testcontainers Postgres (or `supabase start`) | Repositories, services, pipeline steps with fixture files, authz module | Yes | Every push | LLM and OCR mocked with recorded fixtures |
+| Integration | Vitest with a local SQLite/D1 database (miniflare or better-sqlite3 against the same schema) | Repositories, services, pipeline steps with fixture files, authz module | Yes | Every push | LLM and OCR mocked with recorded fixtures |
 | Pipeline evaluation set | Custom Vitest suite | 15 to 30 real anonymized SIMAP tenders with hand-labeled expected blockers, deadlines, evidence items; precision and recall thresholds (blockers precision high per PRD open decision) | Yes, gate for pilot launch | On prompt or model change, nightly optional | Lives in a private fixtures repo; this is the quality control for the product's core |
 | API tests | Vitest (route handlers invoked directly) | Every endpoint: happy path, validation failure, foreign-workspace 403/404, quota errors | Yes | Every push | The cross-tenant matrix is mandatory |
 | E2E | Playwright | Signup to first dossier; citation open; decision plus PDF export; file-failure dossier continues; export and deletion flows; trial expiry read-only | Yes (6 core flows) | PR plus pre-deploy | Runs against a seeded local stack |
@@ -715,7 +711,7 @@ Observability stack: Sentry (errors), `/api/health` plus external uptime ping ev
 | Security tests | Vitest plus scripts | Rate limits, EICAR upload, authz matrix, gitleaks, `pnpm audit` | Yes | Every push | Plus one manual OWASP-checklist pass pre-launch |
 | Visual regression | Playwright screenshots | PDF export template, findings screen | Nice-to-have | Pre-release | Protects disclaimer layout |
 | Performance | k6 or autocannon smoke; timed pipeline batch | NFR-PERF-001/002 medians on the staging fixture batch | Yes, simple version | Pre-launch and on pipeline changes | No load testing beyond smoke |
-| Migration tests | drizzle migrate on copy of staging dump | Every migration applies and rolls forward cleanly | Yes | CI on migration change | Destructive migrations need a backup gate |
+| Migration tests | `wrangler d1 migrations apply` on a scratch database seeded from a copy | Every migration applies and rolls forward cleanly | Yes | CI on migration change | Destructive migrations need a backup gate (Time Travel bookmark) |
 | Import/export tests | Vitest plus E2E | JSON export validates against schema; ZIP manifest complete; re-import not in scope v1 | Yes | Every push | |
 | Browser compatibility | Playwright projects: Chromium, Firefox, WebKit | Core flows | Yes | Pre-release | NFR-BR-001 |
 
@@ -725,32 +721,35 @@ Minimum expectations: `domain/`, `extraction/citationVerify`, `authz`, and `enti
 
 ## 21. CI/CD and development workflow
 
-**Repository.** Single monorepo `bidroom` on GitHub, private. Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`); small, logical commits.
+**Repository.** Single repository `bidroom` on GitHub, private (one Next.js app plus the pipeline Worker config, Section 13). Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`); small, logical commits.
 
 **Branching.** Pre-launch: trunk-based, direct commits to `main` allowed for the founder and agents, but CI must pass; broken `main` is fixed before new work. From paid launch: short-lived branches plus PRs with the checklist (tests, docs, privacy check), `main` auto-deploys to production after CI, tagged releases `vX.Y` with notes, CHANGELOG.md maintained.
 
-**Required checks (CI, GitHub Actions).** install → lint (eslint plus boundaries) → format check (prettier) → typecheck → unit and integration tests → build → gitleaks → dependency audit (non-blocking warning) → E2E on PRs touching `apps/` → migration check when `db/` changes.
+**Required checks (CI, GitHub Actions).** install → `pnpm gate` (lint with boundaries, typecheck, unit and integration tests, format check, copy check, build) → gitleaks → dependency audit (non-blocking warning) → E2E on PRs touching app code → migration check when `db/` changes. Same gate-then-e2e-then-deploy shape as moola's workflow.
 
-**Deployments.** `deploy.yml` on main: build Docker images, push to GHCR, SSH to VPS, run migrations (`pnpm db:migrate`), `docker compose up -d` web then worker, smoke-check `/api/health`. Preview deployments: not at MVP (cost and complexity); use the local stack and staging seed data instead. Rollback: `docker compose` back to the previous image tag (kept on the VPS); migrations are forward-only, so destructive changes ship in two steps (expand, later contract).
+**Deployments.** `deploy.yml` on main after CI: `wrangler d1 migrations apply` (production), then `opennextjs-cloudflare deploy` for the web app and `wrangler deploy -c wrangler.pipeline.jsonc` for the pipeline Worker and Container, then smoke-check `/api/health`. Preview deployments: not at MVP; use the local stack and seed data instead. Rollback: Workers versioned rollback to the previous deployment; migrations are forward-only, so destructive changes ship in two steps (expand, later contract) with a Time Travel bookmark taken first.
 
-**Environments and secrets.** `local`, `production` (plus `staging` optional later as a second compose project on the same VPS with a separate Supabase project). Secrets in GitHub Actions encrypted secrets and the VPS env file; `.env.example` lists every variable with comments; adding a variable requires updating `.env.example` and `docs/deployment.md` in the same commit.
+**Environments and secrets.** `local`, `production` (a `staging` Cloudflare environment with its own D1/R2 can be added later). Secrets in GitHub Actions encrypted secrets and wrangler secrets; `.env.example` lists every variable with comments; adding a variable requires updating `.env.example` and `docs/deployment.md` in the same commit.
 
-**Commands (package scripts).**
+**Commands (package scripts, moola conventions).**
 
 ```bash
-pnpm setup        # install, start local supabase, migrate, seed
-pnpm dev          # web app
-pnpm worker:dev   # worker
-pnpm test         # unit plus integration
+pnpm dev          # next dev
+pnpm test         # vitest run (unit plus integration)
 pnpm test:e2e     # playwright
 pnpm test:eval    # extraction evaluation set (requires fixtures)
 pnpm typecheck
 pnpm lint
-pnpm format
+pnpm check:format # prettier --check
+pnpm check:copy   # em-dash and prohibited-phrase gate (scripts/check-copy.mjs)
+pnpm gate         # lint, typecheck, test, check:format, check:copy, build
 pnpm build
 pnpm db:generate  # drizzle migration from schema change
-pnpm db:migrate
-pnpm deploy       # tag and trigger deploy workflow
+pnpm db:migrate   # wrangler d1 migrations apply (local)
+pnpm cf:build     # opennextjs-cloudflare build
+pnpm cf:preview   # build and preview on the local workerd runtime
+pnpm cf:deploy    # build and deploy web app
+pnpm cf-typegen   # generate CloudflareEnv types
 ```
 
 ---
@@ -762,7 +761,7 @@ pnpm deploy       # tag and trigger deploy workflow
 | README.md | What Bidroom is, quickstart, command list, repo map | New command, structure change |
 | docs/adr/NNN-*.md | Architecture decision records (stack, hosting, auth, LLM, queue, citation design, SIMAP access posture) | Any decision that is expensive to reverse |
 | docs/setup.md | Local environment from zero | New dependency or env var |
-| docs/deployment.md | VPS provisioning, compose, Caddy, deploy, rollback, restore drill | Infra change |
+| docs/deployment.md | Cloudflare provisioning (Workers, D1 and R2 with `jurisdiction=eu`, secrets), deploy, rollback, restore drill | Infra change |
 | docs/testing.md | How to run each suite, fixture policy, eval-set thresholds | New test type or threshold |
 | docs/data-model.md | Entity reference (Section 10 maintained) | Schema change |
 | docs/api.md | Endpoint reference (Section 14 maintained) | Route change |
@@ -801,7 +800,7 @@ These rules govern any AI coding agent (Claude Code or similar) working on Bidro
 
 ## Hard boundaries (never violate without explicit founder approval)
 - Architecture: do not add services, queues, databases, or vendors. Do not bypass
-  packages/server/repositories for database access. Respect the import boundaries lint rules.
+  src/server/repositories for database access. Respect the import boundaries lint rules.
 - Dependencies: no new dependency without a one-paragraph justification in the PR
   (need, alternatives, license, maintenance status).
 - Privacy and security: never log, email, or send to analytics any document content or
@@ -837,11 +836,11 @@ Phasing follows the PRD's roadmap. Estimated effort assumes a solo founder worki
 | Item | Detail |
 | --- | --- |
 | Goal | A deployable, tested walking skeleton with auth, so all later work lands on rails |
-| Included | Monorepo scaffold, CI pipeline, Docker compose plus Caddy on the VPS, Supabase project (EU region recorded in an ADR), Drizzle schema v1 (users, workspaces, memberships), Better Auth flows, base layout and design tokens, logger with redaction, Sentry, health endpoint, uptime check, docs skeleton including CLAUDE.md, `.env.example`, seed script |
+| Included | App scaffold with bounded folders and boundary lint, CI pipeline with `pnpm gate`, Cloudflare provisioning (Workers Paid, D1 and R2 created with `jurisdiction=eu`, recorded in ADR 0002), OpenNext deploy workflow, Drizzle schema v1 (users, workspaces, memberships), magic-link auth ported from moola's pattern, base layout and design tokens, typed message catalog, logger with redaction, health endpoint, uptime check, docs skeleton including CLAUDE.md, `.env.example`, seed script |
 | Excluded | Any product feature, billing, admin |
 | Technical tasks | WP-001 to WP-004 (Section 25) |
-| Product tasks | Confirm open decisions D-01 to D-03 (Section 28); start collecting the fixture tender corpus from public SIMAP notices |
-| Dependencies | Domain, GitHub, Supabase, Hetzner, Sentry accounts |
+| Product tasks | Confirm open decisions D-02 and D-03 (Section 28); start collecting the fixture tender corpus from public SIMAP notices |
+| Dependencies | Domain, GitHub, Cloudflare accounts |
 | Tests required | Auth E2E (signup, login, reset, invite skeleton), authz unit tests, CI green |
 | Documentation | README, setup.md, deployment.md, security.md skeleton, ADRs 001 to 005 |
 | Exit criteria | Founder signs up on production URL over TLS, lands in an empty workspace; deploy and rollback both demonstrated; restore drill performed once |
@@ -888,7 +887,7 @@ Candidates, each gated by demand and legal posture: authenticated SIMAP document
 
 ### Phase 5: Commercial and enterprise (sales-led, only with signed demand)
 
-SSO, custom retention, security questionnaire package, invoicing workflows, data-residency options (CH-only stack: Supabase replaced by Exoscale or aiven-on-CH equivalents, evaluated then).
+SSO, custom retention, security questionnaire package, invoicing workflows, data-residency options (CH-only stack: a Swiss-hosted database and storage equivalent, evaluated then; the EU jurisdiction on D1/R2 covers FADP today).
 
 ---
 
@@ -898,13 +897,13 @@ Risk: L/M/H. Priority: P0 unless noted. Each WP is one or a few PRs with convent
 
 | ID | Title | User value | Technical scope | Files/modules | Depends on | Acceptance criteria | Tests | Docs | Risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| WP-001 | Monorepo and CI scaffold | Foundation | pnpm workspaces, Next.js app, worker stub, shared/domain/server packages, eslint plus boundaries, prettier, Vitest, Playwright, GitHub Actions | repo root, .github | none | CI green on empty suites; boundaries rule fails a demo violation | CI self-test | README, setup.md | L |
-| WP-002 | Infrastructure and deploy | Foundation | Hetzner VPS, Docker compose (web, worker, caddy, clamav), GHCR images, deploy and rollback workflow, Supabase project, env handling | docker-compose.yml, Caddyfile, workflows | WP-001 | Production URL serves app over TLS; rollback demonstrated; health endpoint live with uptime check | smoke | deployment.md, ADR-002 hosting | M |
+| WP-001 | App and CI scaffold | Foundation | Single Next.js app with bounded src/ folders (shared, domain, server, pipeline), eslint plus boundaries, prettier, Vitest, Playwright, typed message catalog, check-copy script, `pnpm gate`, GitHub Actions | repo root, .github, scripts/ | none | CI green on empty suites; boundaries rule fails a demo violation; gate runs clean | CI self-test | README, setup.md | L |
+| WP-002 | Infrastructure and deploy | Foundation | Cloudflare provisioning: Workers Paid, D1 with `jurisdiction=eu`, R2 with `jurisdiction=eu`, OpenNext config, pipeline wrangler config stub, deploy and rollback workflow, secrets handling | wrangler.jsonc, wrangler.pipeline.jsonc, workflows | WP-001 | Production URL serves app over TLS; rollback demonstrated; health endpoint live with uptime check | smoke | deployment.md, ADR 0002 | M |
 | WP-003 | Schema v1 plus repositories pattern | Foundation | Drizzle schema (users, workspaces, memberships, audit_events, events, flags), migrations, repository layer, authz module, seed | server/db, repositories, authz | WP-001 | Migrations apply in CI; repository lint rule enforced | unit: authz, repos | data-model.md | L |
-| WP-004 | Auth and workspace shell | Sign in and land | Better Auth (password, verify, reset, magic link), workspace create, invite skeleton, app layout, settings stub, rate limits | server/auth, app/(app) | WP-003 | US-002 criteria; rate limits active | E2E auth suite, authz matrix start | security.md | M |
+| WP-004 | Auth and workspace shell | Sign in and land | Magic-link auth ported from moola's pattern (token primitives, store interfaces, sessions, rate limits), workspace create, invite skeleton, app layout, settings stub | server/auth, app/(app) | WP-003 | US-002 criteria; rate limits active; auth primitives unit-tested | E2E auth suite, authz matrix start | security.md, ADR for the auth port | M |
 | WP-010 | Company profile | Better fit analysis | Profile model with versioning, minimal form, controlled vocab plus free tags | services/profile, app routes | WP-004 | US-004; no field blocks first analysis (WRK-002) | unit, E2E | data-model | L |
 | WP-011 | SIMAP intake | Start from a real tender | integrations/simap client (public read-only), URL validation (TND-001/002), notice snapshot storage, duplicate detection, SourceDisclaimer component, dossier creation | integrations/simap, services/dossiers | WP-003 | Valid URL creates dossier with unmodified source fields plus disclaimer; invalid URL explained; duplicate offers reuse | unit (URL patterns, snapshot), contract test, E2E | api.md, ADR-006 SIMAP access posture | M |
-| WP-012 | File upload and scanning | Provide the documents | Signed-URL upload, file registry, ClamAV scan job, type sniffing, size caps, honest unsupported/protected/corrupt states (TND-004/005), upload-authority acknowledgment for evidence category | services/files, worker/jobs/scanFile | WP-011 | All Section "edge cases" file states render correct messages; EICAR blocked | unit, integration with fixtures, E2E | privacy.md | M |
+| WP-012 | File upload and scanning | Provide the documents | Presigned-URL upload to R2, file registry, ClamAV scan step in the Container, type sniffing, size caps, honest unsupported/protected/corrupt states (TND-004/005), upload-authority acknowledgment for evidence category | services/files, container/, pipeline scan step | WP-011 | All Section "edge cases" file states render correct messages; EICAR blocked | unit, integration with fixtures, E2E | privacy.md | M |
 | WP-013 | Text extraction with anchors | Pipeline foundation | pdf and docx extraction with page/paragraph anchors, chars-per-page heuristic, extraction_text storage | extraction/parsers | WP-012 | Fixture corpus extracts with stable anchors; sparse pages flagged for OCR | unit on corpus | prompts.md skeleton | M |
 | WP-014 | OCR fallback | Scanned docs usable | Mistral OCR client, page-image rendering, merge with anchors, cost accounting | extraction/ocr | WP-013 | Scanned fixture produces searchable text marked ocr=true | integration (recorded fixtures) | ADR-007 OCR | M |
 | WP-015 | Processing status UX | Trust during the wait | Run state machine, per-file stage display, polling endpoint, failure reasons (US-007), partial-failure semantics (NFR-REL-002) | services/runs, dossier UI | WP-013 | One failed file never blocks others; states actionable | integration, E2E | runbook | L |
@@ -914,7 +913,7 @@ Risk: L/M/H. Priority: P0 unless noted. Each WP is one or a few PRs with convent
 | WP-019 | Dossier UI with citation viewer | The wow screen | Overview, findings list with ConfidenceBadge, citation viewer pane (US-009), confirm/dismiss/comment (US-011), deadlines timeline, source vs analysis labeling (ANA-004) | components/dossier | WP-018 | PRD wow-moment acceptance table fully met; axe-clean | E2E core flow, a11y, component tests | help article | M |
 | WP-020 | Checklist and tasks | Review becomes work | Task generation from findings, owner/status/due, manual tasks | services/tasks | WP-018 | CHK-001/002 | unit, E2E | | L |
 | WP-021 | Evidence library lite | Repeat-use value | Typed evidence items (EVD-001), upload reuse of WP-012, link to tasks (EVD-003), optional validity date | services/evidence | WP-012, WP-020 | US-013/014; link state visible on tasks | unit, E2E | | L |
-| WP-022 | Decision and PDF export | Shareable outcome | Decision record with append-only history, print route, Chromium render job, disclaimer block, export expiry | services/decisions, exports | WP-019 | DEC-001/002, EXP-001/002; PDF visually separates source and analysis | E2E, visual check on PDF | help article | M |
+| WP-022 | Decision and PDF export | Shareable outcome | Decision record with append-only history, print route, Browser Rendering export job, disclaimer block, export expiry | services/decisions, exports | WP-019 | DEC-001/002, EXP-001/002; PDF visually separates source and analysis | E2E, visual check on PDF | help article | M |
 | WP-023 | Privacy flows | Rights and trust | Workspace export bundle (JSON shape Section 10 plus ZIP of files with manifest), deletion with undo window and purge job, account deletion with last-owner handling, retention cleanup job | services/privacy, worker | WP-021 | SEC-001; export complete and valid; deletion verifiably purges rows and objects | E2E export and delete, integration purge test | privacy.md | M |
 | WP-024 | Pilot correction console and metrics | Operate the pilots | Admin role, workspace lookup, failure queue with re-run, finding correction (pilot flag), feedback inbox, metrics page, audit writes | app/(admin), services/admin | WP-018 | ADM-001/002 defaults; corrections logged | admin E2E, authz matrix | runbook | M |
 | WP-030 | Stripe foundation | Monetize | Products/prices, Checkout, Portal, webhook endpoint with signature and idempotency, billing state mirror | services/billing, integrations/stripe | Phase 1 exit | Section 17 table rows for checkout, renewal | webhook tests | api.md | M |
@@ -960,12 +959,12 @@ Commit-boundary guidance per WP: schema and migration first; service plus unit t
 | R-03 | Per-dossier LLM and OCR cost exceeds plan economics | Medium | Medium-high | AI spend per workspace above CHF 15/month; whale users | Analysis quotas per plan, page caps, Haiku triage, prompt caching, batch OCR, daily spend cap alert, cost recorded per run | Founder | No |
 | R-04 | Scope creep toward discovery, drafting, or submission | Medium | High | Tickets drifting; pilot requests | PRD boundaries in CLAUDE.md; tickets violating boundaries rejected per PRD guidance | Founder | No |
 | R-05 | Wrong stack choice discovered late | Low | Medium | Persistent friction in a layer | Boring choices with documented migration paths per layer (Section 7) | Founder | No |
-| R-06 | Vendor lock-in or vendor failure (Supabase, Stripe, Anthropic) | Low-medium | Medium | Pricing or terms changes | Plain-Postgres usage, S3-compatible storage, provider-abstracted LLM with eval set, entitlements vendor-neutral | Founder | No |
+| R-06 | Vendor lock-in or vendor failure (Cloudflare, Stripe, Anthropic) | Low-medium | Medium | Pricing or terms changes; platform limit changes | Standard SQLite, S3-compatible storage, pipeline steps as plain functions, documented Hetzner plus Supabase fallback (Section 8), provider-abstracted LLM with eval set, entitlements vendor-neutral | Founder | No |
 | R-07 | Security breach or cross-tenant leak | Low | Very high | Probe traffic, authz test regressions | Section 12 controls; authz matrix in CI; minimal admin surface; IR plan | Founder | Yes, controls are MVP scope |
-| R-08 | Data loss | Low | Very high | Failed backup jobs | Managed daily backups, monthly restore drill, forward-only migrations with backup gate | Founder | Controls in MVP |
+| R-08 | Data loss | Low | Very high | Failed backup jobs | D1 Time Travel plus scheduled R2 exports, monthly restore drill, forward-only migrations with backup gate | Founder | Controls in MVP |
 | R-09 | Payment failures and billing edge cases | Medium | Medium | Webhook errors, support tickets | Full webhook test table, grace design, Stripe Portal | Founder | No (Phase 2) |
 | R-10 | Weak pipeline performance on large dossiers | Medium | Medium | Median over 6 minutes | Parallel per-file jobs, page caps, OCR only where needed, performance batch test | Founder | Pilot quality only |
-| R-11 | Poor reliability on the single VPS | Medium | Medium | Repeated downtime alerts | Stateless VPS plus rebuild script; acceptable at 99.5%; PaaS fallback documented | Founder | No |
+| R-11 | Cloudflare platform limits or behavior surprises (Workflow step limits, Container cold starts, D1 semantics) | Medium | Medium | Pipeline failures with platform error categories; latency spikes | Page caps keep work inside limits; Container handles the heavy steps; pipeline steps are portable plain functions; Hetzner plus Supabase fallback documented (Section 8, ADR 0002) | Founder | No |
 | R-12 | AI coding agent mistakes (boundary violations, silent scope changes, fabricated vendor behavior) | Medium | Medium-high | Lint failures, surprising diffs | CLAUDE.md rules, boundaries lint, eval gate, small PRs, founder review of all schema, authz, billing, and prompt changes | Founder | No |
 | R-13 | Regulatory or privacy gap (FADP rights, subprocessor disclosure, consent) | Low-medium | High | Pilot security questionnaires stall | Section 12 table is MVP scope; lawyer review before paid launch | Founder | Partially (P0 items yes) |
 | R-14 | Test or documentation drift | Medium | Medium | Coverage drops, stale docs found | CI gates, PR checklist, docs-with-code rule | Founder | No |
@@ -977,7 +976,7 @@ Commit-boundary guidance per WP: schema and migration first; service plus unit t
 
 | ID | Decision | Why it matters | Options | Recommended default | Consequence of delaying | Blocks implementation |
 | --- | --- | --- | --- | --- | --- | --- |
-| D-01 | Supabase region: Zurich (eu-central-2) if offered, or Frankfurt (eu-central-1) | Sales materials must state the region explicitly (PRD); CH hosting is a stronger trust signal, EU is legally sufficient under FADP | Zurich; Frankfurt | Zurich if available at project creation, else Frankfurt | None if decided in Phase 0; migrating regions later means a project move | Phase 0 day one |
+| D-01 | RESOLVED (ADR 0002): data residency via Cloudflare `jurisdiction=eu` on D1 and R2, set at creation | Sales materials must state the residency posture explicitly (PRD); EU jurisdiction is legally sufficient under FADP | n/a | Create D1 and R2 with `jurisdiction=eu` in WP-002; state it in privacy and sales materials | n/a | Resolved |
 | D-02 | LLM inference location: Anthropic API (US processing, no-training default) vs Claude on Vertex/Bedrock EU regional endpoints vs Mistral (EU) | Subprocessor disclosure and pilot security questionnaires | As listed | Anthropic API for MVP with clear disclosure; revisit if two or more pilots object | Possible pilot friction | No, but decide before privacy policy is finalized |
 | D-03 | Domain and brand asset (bidroom.ch / .com availability unknown to this plan) | Email deliverability setup and legal pages need the final domain | Founder choice | Secure .ch and .com together | Email domain warming delayed | Phase 0 |
 | D-04 | Analysis quota numbers per plan (this plan recommends Solo 15/month, Team 50/month, page cap 600) | Unit economics (R-03) and pricing-page honesty | Tighter; looser; metered overage later | Recommended numbers, tunable via flags | Cost exposure if launched without quotas | Before paid launch |
@@ -989,7 +988,7 @@ Commit-boundary guidance per WP: schema and migration first; service plus unit t
 
 ## 29. Final technical recommendation
 
-**Recommended stack.** TypeScript; Next.js plus a Node worker on one Hetzner VPS (Docker Compose, Caddy); Supabase Postgres and Storage in an EU region; Drizzle; pg-boss; Better Auth; Zod; Tailwind plus shadcn/ui; Claude API (Sonnet plus Haiku) with citation verification; Mistral OCR; Stripe; Resend; Plausible plus internal events; Sentry; GitHub Actions; Vitest plus Playwright.
+**Recommended stack.** TypeScript; Next.js on Cloudflare Workers via OpenNext plus a pipeline Worker (Workflows, Queues, Cron) and one Container for parsing and ClamAV; D1 and R2 with `jurisdiction=eu`; Drizzle; magic-link auth ported from moola; Zod; Zustand; typed dictionary i18n; Tailwind v4 plus shadcn/ui; Claude API (Sonnet plus Haiku) with citation verification; Mistral OCR; Browser Rendering for PDFs; Stripe; Resend; Plausible plus internal events; GitHub Actions; Vitest plus Playwright. Aligned with moola everywhere Bidroom does not genuinely need more (ADR 0002).
 
 **Recommended first implementation phase.** Phase 0 (two-week timebox), then go straight at the pipeline.
 
@@ -1014,16 +1013,13 @@ Commit-boundary guidance per WP: schema and migration first; service plus unit t
 ### A. Glossary
 - **Dossier**: one tender case in a workspace. **AnalysisRun**: one versioned pipeline execution. **Finding**: one extracted, typed statement with citation and confidence. **Citation**: verified source anchor (file, locator, excerpt). **Eval set**: labeled tender corpus gating extraction changes. **Break-glass**: logged, time-bounded exceptional admin access to customer documents. **Entitlements**: plan limits enforced from our database.
 
-### B. ADR list (to write during Phase 0/1)
-001 stack and monorepo; 002 hosting on Hetzner with Supabase state; 003 Better Auth over hosted auth; 004 pg-boss over external queues; 005 Supabase region choice; 006 SIMAP access posture (public read-only API, manual uploads, disclaimer policy); 007 OCR provider; 008 citation data model and verification threshold; 009 LLM provider and inference-location policy; 010 PDF rendering approach.
+### B. ADR list
+Written: 0001 rename to Bidroom; 0002 Cloudflare-native stack aligned with moola (hosting, D1/R2 jurisdictions, Workflows, Container, auth pattern, i18n, no Sentry). To write during Phase 0/1: 0003 auth pattern port details; 0004 dossier Workflow design; 0005 citation data model and verification threshold; 0006 SIMAP access posture (public read-only API, manual uploads, disclaimer policy); 0007 OCR provider; 0008 LLM provider and inference-location policy; 0009 Container design (parsers, ClamAV, invocation contract).
 
-### C. Example environment variables (`.env.example`)
+### C. Example environment variables and bindings
+Cloudflare bindings live in the wrangler configs, not env vars: `DB` (D1, `jurisdiction=eu`), `DOCS` (R2, `jurisdiction=eu`), `PROCESS_DOSSIER` (Workflow), `EMAIL_QUEUE` (Queue), `PARSER` (Container), `RATE_LIMIT_KV` (KV), `BROWSER` (Browser Rendering). Secrets via `wrangler secret put` in production and `.dev.vars` locally; `.env.example` documents them:
 ```
-DATABASE_URL=
-SUPABASE_URL=
-SUPABASE_SERVICE_KEY=
-STORAGE_BUCKET_DOCS=docs
-BETTER_AUTH_SECRET=
+SESSION_SECRET=
 APP_URL=https://app.bidroom.example
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL_EXTRACT=claude-sonnet-4-6
@@ -1034,21 +1030,18 @@ STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 RESEND_API_KEY=
 EMAIL_FROM=notifications@bidroom.example
-SENTRY_DSN=
 PLAUSIBLE_DOMAIN=
-CLAMAV_HOST=clamav
-NODE_ENV=
 LLM_USE_FIXTURES=true   # local default: never call live APIs in tests
 ```
 
 ### D. Example CI pipeline (summary)
-`ci.yml`: checkout → pnpm install (cached) → lint → format:check → typecheck → unit/integration (Postgres service container) → build → gitleaks → audit (warn) → E2E (on app changes) → migration check (on db changes). `deploy.yml` (main): build and push images → SSH migrate → compose up → health smoke → notify.
+`ci.yml`: checkout → pnpm install (cached) → `pnpm gate` (lint, typecheck, unit/integration, format check, copy check, build) → gitleaks → audit (warn) → E2E (on app changes) → migration check (on db changes). `deploy.yml` (main): `wrangler d1 migrations apply` → `cf:deploy` web → `wrangler deploy -c wrangler.pipeline.jsonc` → health smoke → notify. Same shape as moola's workflow.
 
 ### E. Example security checklist (pre-launch, abridged)
-Authz matrix green; rate limits verified; EICAR blocked; secrets scan clean; cookies HttpOnly/Secure/SameSite; CSRF on mutations; webhook signatures verified; signed URL TTL ≤ 10 min; logs content-free (test); Sentry scrubber test; backup restore drill date recorded; key rotation performed once; IR one-pager written; dependency audit reviewed.
+Authz matrix green; rate limits verified; EICAR blocked; secrets scan clean; cookies HttpOnly/Secure/SameSite; CSRF on mutations; webhook signatures verified; presigned URL TTL of 10 minutes or less; logs content-free (test); backup restore drill date recorded; key rotation performed once; IR one-pager written; dependency audit reviewed.
 
 ### F. Example documentation checklist per PR
 Behavior change → CHANGELOG plus relevant docs page; new env var → `.env.example` plus deployment.md; schema change → data-model.md; new endpoint → api.md; prompt change → prompts.md plus eval results; new vendor → privacy.md subprocessors plus legal-page task; new command → README.
 
 ### G. Source references (verified 2026-06-10)
-SIMAP legal and API terms: https://www.simap.ch/en/about/legal · SIMAP FAQ (API, subscriptions): https://www.simap.ch/en/help/faq · SME portal on SIMAP: https://www.kmu.admin.ch/kmu/en/home/concrete-know-how/sme-management/public-procurement/simap.html · Open-source public-API client evidencing read-only access: https://github.com/Digilac/simap-mcp · Supabase pricing: https://supabase.com/pricing · Hetzner Cloud pricing and April 2026 adjustment: https://www.hetzner.com/cloud/ and https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/ · Stripe Switzerland pricing: https://stripe.com/en-ch/pricing and https://stripe.com/en-ch/billing/pricing · Claude API pricing: https://platform.claude.com/docs/en/about-claude/pricing · Anthropic commercial terms (no training on customer content by default): https://www.anthropic.com/legal/commercial-terms · Mistral OCR 3 pricing: https://mistral.ai/news/mistral-ocr-3/ · Resend pricing: https://resend.com/pricing · Plausible pricing: https://plausible.io/ · Sentry pricing: https://sentry.io/pricing
+SIMAP legal and API terms: https://www.simap.ch/en/about/legal · SIMAP FAQ (API, subscriptions): https://www.simap.ch/en/help/faq · SME portal on SIMAP: https://www.kmu.admin.ch/kmu/en/home/concrete-know-how/sme-management/public-procurement/simap.html · Open-source public-API client evidencing read-only access: https://github.com/Digilac/simap-mcp · Cloudflare Workers pricing: https://developers.cloudflare.com/workers/platform/pricing/ · Cloudflare Containers GA (April 2026): https://developers.cloudflare.com/changelog/post/2026-04-13-containers-sandbox-ga/ · D1 jurisdictions: https://developers.cloudflare.com/d1/configuration/data-location/ · R2 data location and jurisdictions: https://developers.cloudflare.com/r2/reference/data-location/ · Workflows limits: https://developers.cloudflare.com/workflows/reference/limits/ · Stripe Switzerland pricing: https://stripe.com/en-ch/pricing and https://stripe.com/en-ch/billing/pricing · Claude API pricing: https://platform.claude.com/docs/en/about-claude/pricing · Anthropic commercial terms (no training on customer content by default): https://www.anthropic.com/legal/commercial-terms · Mistral OCR 3 pricing: https://mistral.ai/news/mistral-ocr-3/ · Resend pricing: https://resend.com/pricing · Plausible pricing: https://plausible.io/ · Fallback option references: Supabase pricing https://supabase.com/pricing, Hetzner Cloud https://www.hetzner.com/cloud/
