@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -6,5 +7,6 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
-// The Cloudflare dev integration (initOpenNextCloudflareForDev) is wired in WP-002 so
-// `next dev` can mirror the Workers runtime once the D1, R2, and KV bindings exist.
+// Mirror the Cloudflare Workers runtime during `next dev` so the D1, R2, and KV bindings
+// (declared in wrangler.jsonc) are available locally. No effect on the production build.
+initOpenNextCloudflareForDev();

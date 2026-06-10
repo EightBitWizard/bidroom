@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Pipeline Worker (ADR 0002): hosts the dossier Workflow, queue consumers, and cron
+  // handlers, plus the Container binding for parsing and ClamAV. Stub in Phase 0; the
+  // Workflow, Queues, and Container are wired from WP-013 onward. It shares the same D1,
+  // R2, and KV bindings as the web app.
+  "name": "bidroom-pipeline",
+  "main": "src/pipeline/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": {
+    "enabled": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bidroom",
+      "database_id": "PLACEHOLDER_SET_AT_PROVISIONING",
+      "migrations_dir": "src/server/db/migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DOCS",
+      "bucket_name": "bidroom-docs",
+    },
+  ],
+}

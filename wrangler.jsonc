@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bidroom",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "observability": {
+    "enabled": true,
+  },
+  // Bindings are declared here and filled at provisioning (OPERATOR_TODO). D1 and the R2
+  // bucket are created with `jurisdiction=eu` (ADR 0002); the KV namespace backs the durable
+  // auth rate limiter (ADR 0003). The ids are placeholders until the founder provisions them;
+  // `wrangler dev` uses local simulations of these for development.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bidroom",
+      "database_id": "PLACEHOLDER_SET_AT_PROVISIONING",
+      "migrations_dir": "src/server/db/migrations",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "RATE_LIMIT_KV",
+      "id": "PLACEHOLDER_SET_AT_PROVISIONING",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DOCS",
+      "bucket_name": "bidroom-docs",
+    },
+  ],
+}

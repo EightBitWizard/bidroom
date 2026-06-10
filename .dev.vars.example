@@ -1,0 +1,12 @@
+# Local development variables for `wrangler dev` / OpenNext preview. Copy to `.dev.vars`
+# (gitignored) and fill. `.dev.vars` is read by the Workers runtime locally; the D1, R2,
+# and KV bindings are simulated locally by wrangler.
+
+# At least 32 characters. Any non-secret value is fine for local development.
+SESSION_SECRET=local-development-session-secret-change-me
+
+# Local origin for magic links.
+APP_BASE_URL=http://localhost:3000
+
+# Print magic links to the console so local sign-in works without an email provider.
+DEV_EMAIL_CONSOLE=true
