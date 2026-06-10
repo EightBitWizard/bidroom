@@ -1,4 +1,5 @@
-import type { AuthDeps } from "./auth/service";
+import { type AuthDeps, resolveSession } from "./auth/service";
+import { readSessionCookie } from "./cookies";
 import { createDb, type Db } from "./db/client";
 import { ConsoleEmailSender, type EmailSender, NoopEmailSender } from "./email";
 import { InMemoryRateLimiter, KVRateLimiter, type KVLike, type RateLimiter } from "./ratelimit";
@@ -83,4 +84,16 @@ export function authDeps(ctx: ServerContext): AuthDeps {
 /** Standard 503 when the backend is not configured. */
 export function notConfigured(): Response {
   return Response.json({ error: "not_configured" }, { status: 503 });
+}
+
+/** Resolve the signed-in account id from the request's session cookie, or null. */
+export async function requireAccountId(
+  ctx: ServerContext,
+  request: Request,
+): Promise<string | null> {
+  const session = await resolveSession(
+    { db: ctx.db, sessionSecret: ctx.sessionSecret, now: () => new Date() },
+    readSessionCookie(request),
+  );
+  return session?.accountId ?? null;
 }
