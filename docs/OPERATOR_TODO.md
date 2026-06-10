@@ -20,9 +20,12 @@ reference the tech plan Sections 27 and 28.
 - [ ] GitHub: private repository `bidroom` (if not already the origin) with Actions enabled.
 - [ ] Cloudflare: enable the Workers Paid plan (USD 5/month; required for Containers and
       Workflows) on your existing account or a new one, and provide an API token with Workers,
-      D1, R2, and Queues permissions so the agent can provision and deploy via wrangler (WP-002).
+      D1, R2, KV, and Queues permissions so the agent can provision and deploy via wrangler (WP-002).
       D1 and R2 must be created with `jurisdiction=eu`. Same platform as moola, so the moola
       deploy knowledge carries over.
+- [ ] Cloudflare KV namespace for the durable rate limiter (`RATE_LIMIT_KV` binding), required
+      from WP-004 so the auth rate limiter is durable from day one and never an in-memory-only
+      limiter in production (ADR 0003). This is the Bidroom equivalent of moola's open KV item.
 - [ ] Anthropic API account; provide `ANTHROPIC_API_KEY` and set a daily spend cap (plan default
       `LLM_DAILY_SPEND_CAP_USD=25`). Needed from WP-016 (LLM extraction).
 - [ ] Mistral API account for OCR; needed from WP-014.
@@ -55,6 +58,21 @@ reference the tech plan Sections 27 and 28.
 - [ ] VAT advice: registration becomes mandatory at CHF 100,000 global turnover; get an
       accountant's confirmation of the approach before paid launch (tech plan Section 8).
 - [ ] Provide the imprint postal address and operator legal name for the legal pages.
+
+## Security operations (ADR 0003; converges with moola's post-ADR-0035 operator list)
+
+- [ ] Protected GitHub deploy environment with a reviewer or wait timer; scope and rotate the
+      Cloudflare API token so deploy is not an unguarded auto-deploy-to-prod path with a long-lived
+      token (R-09). Needed before paid launch.
+- [ ] D1 backup and restore runbook (Time Travel plus scheduled export to R2); run the restore drill
+      monthly and record the date. Treat entitlements as reconstructible from Stripe (R-12).
+- [ ] Monitoring decision: wire uptime, pipeline-failure, and (Phase 2) webhook-failure alerts, plus
+      an incident-response and FADP breach-notification one-pager. Any error monitor must scrub
+      document content and personal data (R-13).
+- [ ] MFA / step-up revisit (accepted-risk review, R-06): before paid launch, decide whether the
+      highest-value actions (FADP export, workspace/account deletion, billing changes) need a step-up
+      second factor. MVP accepts email-as-single-factor per ADR 0003; revisit because Bidroom, unlike
+      moola, stores customer documents at rest.
 
 ## Validation work (founder-led, parallel to Phase 1, from the business plan)
 

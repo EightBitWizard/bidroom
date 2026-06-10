@@ -32,10 +32,10 @@ If the documents conflict, use this priority:
 - Cloudflare-native, aligned with moola (ADR 0002): one Next.js app deployed to Workers via OpenNext, plus a pipeline Worker (second wrangler config, same repo) and one Container for parsing and malware scanning. Single app with bounded `src/` folders enforced by ESLint boundary rules; no pnpm-workspaces monorepo. Do not add services, queues, databases, or vendors without explicit founder approval.
 - All state lives in Cloudflare D1 and R2, both created with `jurisdiction=eu`. The code is stateless; everything redeploys with wrangler.
 - `src/domain` imports only `src/shared`. No React, no DB, no network. Fully unit-testable.
-- `src/server/repositories` is the only module that touches the Drizzle client. Every repository function takes a verified workspace context from the authz module. D1 has no interactive transactions; multi-statement writes use `batch()` and idempotent steps.
+- `src/server/repositories` is the only module that touches the Drizzle client. Every repository function takes a non-optional verified `WorkspaceContext` from the authz module. D1 has no row-level security and no interactive transactions; this module is the only tenant barrier, and multi-statement writes use `batch()` and idempotent steps. The foreign-workspace authz matrix (every API route 403/404 under a foreign-workspace session) is a blocking gate from the first tenant-owned table (ADR 0003).
 - UI components contain no business logic; data arrives via server components or server actions calling `server/services`.
 - Anything over ~2 seconds of work runs in the dossier Workflow, a Queue consumer, or a Cron handler; never in request handlers. Pipeline steps are plain, portable functions.
-- Auth follows moola's pattern: magic-link only, no passwords, signed httpOnly session cookies, store interfaces, rate-limited endpoints. Workspace invitations are signed single-use tokens.
+- Auth follows moola's HARDENED pattern (ADR 0003): magic-link only, no passwords; server-side session revocation via `session_version`; interstitial POST-to-consume callback so scanners cannot burn links; durable KV rate limiting keyed by email and IP; `isSameOriginRequest` guard on every state-changing route; token housekeeping. Workspace invitations are email-bound, atomic single-use tokens with the role looked up server-side at acceptance (never trusted from the token) and seat revalidated.
 - Client state uses Zustand where needed (same as moola); i18n uses the typed dictionary pattern (`messages/*.json`), never hardcoded strings.
 - Citations are a first-class data structure. Every material finding stores a verified source excerpt and locator, or is explicitly marked unsupported. Never weaken the citation verification step.
 - Official SIMAP source fields are stored verbatim (`raw_source`) and displayed unmodified, always with the required disclaimer component.
@@ -53,8 +53,9 @@ If the documents conflict, use this priority:
 ## Privacy and security rules
 
 - Never log, email, or send to analytics any document content or extracted personal data. The logger uses an allowlist; there is no error-tracking SaaS at MVP (same as moola). Product analytics are metadata-only event rows in our own D1 (the PRD-approved event list only).
-- Never send account PII to LLM providers. Only extraction text goes to Claude/Mistral OCR; both are disclosed subprocessors; no training on customer content.
-- Never weaken the authz module, rate limits, the upload malware scan, or webhook signature verification.
+- Never send account PII to LLM providers. Only extraction text goes to Claude/Mistral OCR; both are disclosed subprocessors; no training on customer content. The no-account-PII-to-LLM invariant is asserted in code and tests, not left to convention (ADR 0003).
+- Uploads are fail-closed: no file is parsed before the ClamAV scan passes, parsing runs in the Container with constrained outbound network, and an EICAR test guards the boundary in CI.
+- Never weaken the authz module, the durable rate limiter, session revocation, the cross-site (`isSameOriginRequest`) guard, the upload malware scan, the citation verification step, or webhook signature verification (ADR 0003).
 - Admin/support is metadata-first; document access only via logged, time-bounded break-glass with a reason.
 - Secrets only in wrangler secrets, `.dev.vars`, and GitHub encrypted secrets, never in the repo. Adding an env var or binding requires updating `.env.example` and `docs/deployment.md` in the same commit.
 - Export and deletion are real product workflows (FADP rights), not back-office favors.
