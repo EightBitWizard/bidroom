@@ -4,9 +4,37 @@ A running record of what is built versus pending, kept up to date as work lands.
 target picture see `technical_architecture_and_implementation_plan.md` (work packages and phases)
 and `bidroom_user_stories_and_requirements.md`; this file is the short status overview.
 
-Last updated: 2026-06-10 (security model baked in, ADR 0003)
+Last updated: 2026-06-10 (Phase 0 walking skeleton landed: WP-001 to WP-004)
 
 ## Resume here (next session)
+
+Phase 0 is COMPLETE and on `main` (gate green, 54 unit/integration tests, 3 Playwright smoke tests):
+
+- WP-001 scaffold + CI (pnpm gate, ESLint boundaries, check-copy, i18n, landing, gitleaks/dependabot).
+- WP-002 Cloudflare config (wrangler.jsonc with DB/KV/R2 bindings, OpenNext, drizzle.config, deploy
+  workflow, setup.md/deployment.md). Live provisioning is operator-blocked (D-03 domain, API token,
+  KV namespace) in docs/OPERATOR_TODO.md.
+- WP-003 schema v1 (Drizzle: accounts+session_version, auth_tokens, workspaces, memberships,
+  invitations, audit_events) plus repositories and the authz module; the foreign-workspace authz
+  matrix is a blocking test gate.
+- WP-004 hardened magic-link auth ported from moola (session_version revocation, interstitial
+  POST-to-consume, durable KV limiter, isSameOriginRequest, token housekeeping), the multi-tenant
+  workspace/invitation routes, and the workspace UI shell. The signup-to-workspace backend flow is
+  covered end to end by src/server/flow.test.ts against real SQLite.
+
+Next: Phase 1 MVP core (tech plan Section 24). Start the dossier chain that is the product:
+
+- WP-010 company profile, WP-011 SIMAP URL intake (needs the public SIMAP API client), WP-012 file
+  upload + fail-closed Container scan, then WP-013 to WP-019 (extraction, citation verification,
+  findings screen). WP-011 onward needs the Anthropic/Mistral accounts and the SIMAP access posture
+  (operator items). WP-010 can start without operator input.
+
+Operator items to unblock production sign-in: the Cloudflare API token, the D1 database id (run the
+provisioning in docs/deployment.md), and the RATE_LIMIT_KV namespace; then `wrangler d1 migrations
+apply` + `cf:deploy`. A Playwright pass of the live signup flow against the OpenNext preview runtime
+is a follow-up once a local D1 is seeded.
+
+## Earlier resume note (superseded)
 
 Done: the three founding documents are complete (market analysis, PRD v0.9, tech plan v1.1). The
 product was renamed from its earlier working name to Bidroom across all docs (ADR 0001).
@@ -40,7 +68,7 @@ findings screen) is the product.
 
 ## Phase status (tech plan Section 24)
 
-- Phase 0 foundation: NOT STARTED
+- Phase 0 foundation: COMPLETE (WP-001 to WP-004; live Cloudflare provisioning operator-blocked)
 - Phase 1 MVP core product: not started
 - Phase 2 trust, payments, launch readiness: not started
 - Phase 3 retention and paid depth: not started

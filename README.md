@@ -6,7 +6,7 @@ Bidroom is decision support, not legal advice. It does not discover tenders, dra
 
 ## Status
 
-Documentation phase. No code yet; Phase 0 (walking skeleton) has not started. See `docs/PROGRESS.md` for the current build status and `docs/OPERATOR_TODO.md` for founder action items.
+Phase 0 (the walking skeleton) has landed: the gate, CI, Cloudflare config, the multi-tenant schema and authz, the hardened magic-link auth ported from moola, and a workspace shell. The live Cloudflare provisioning (real D1/R2/KV, domain) remains an operator task. See `docs/PROGRESS.md` for the current build status, `docs/setup.md` to run it locally, and `docs/OPERATOR_TODO.md` for founder action items.
 
 ## Documentation map
 
