@@ -1,7 +1,11 @@
+import { assertWorkspaceAccess, type WorkspaceContext } from "./authz";
+import { authzErrorResponse } from "./authz/http";
 import { type AuthDeps, resolveSession } from "./auth/service";
 import { readSessionCookie } from "./cookies";
 import { createDb, type Db } from "./db/client";
 import { ConsoleEmailSender, type EmailSender, NoopEmailSender } from "./email";
+import { FixtureSimapClient, HttpSimapClient, type SimapClient } from "./integrations/simap/client";
+import { getMembership } from "./repositories/workspaces";
 import { InMemoryRateLimiter, KVRateLimiter, type KVLike, type RateLimiter } from "./ratelimit";
 
 /**
@@ -19,6 +23,8 @@ export interface ServerContext {
   ipRateLimiter: RateLimiter;
   sessionSecret: string;
   baseUrl: string;
+  /** SIMAP notice client; the fixture client in dev/test, the live client otherwise. */
+  simap: SimapClient;
 }
 
 export interface CloudflareEnv {
@@ -29,6 +35,8 @@ export interface CloudflareEnv {
   APP_BASE_URL?: string;
   /** When "true", log magic links to the console (local dev only; never in production). */
   DEV_EMAIL_CONSOLE?: string;
+  /** When "true", resolve SIMAP notices from recorded fixtures instead of the live API. */
+  SIMAP_USE_FIXTURES?: string;
 }
 
 const MIN_SECRET_LENGTH = 32;
@@ -66,6 +74,7 @@ export function buildContext(env: CloudflareEnv | undefined): ServerContext | nu
     ipRateLimiter,
     sessionSecret: env.SESSION_SECRET,
     baseUrl: env.APP_BASE_URL ?? "https://app.bidroom.example",
+    simap: env.SIMAP_USE_FIXTURES === "true" ? new FixtureSimapClient() : new HttpSimapClient(),
   };
 }
 
@@ -96,4 +105,27 @@ export async function requireAccountId(
     readSessionCookie(request),
   );
   return session?.accountId ?? null;
+}
+
+/**
+ * Resolve a verified WorkspaceContext for a workspace-nested route, or an error Response: 401 if
+ * not signed in, 404 if not a member (a foreign workspace is not revealed), 403 if the role is
+ * insufficient. This is the single auth+authz entry point every tenant-scoped route uses.
+ */
+export async function resolveWorkspaceContext(
+  ctx: ServerContext,
+  request: Request,
+  workspaceId: string,
+): Promise<WorkspaceContext | Response> {
+  const accountId = await requireAccountId(ctx, request);
+  if (!accountId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  try {
+    return await assertWorkspaceAccess(
+      (w, a) => getMembership(ctx.db, w, a),
+      accountId,
+      workspaceId,
+    );
+  } catch (error) {
+    return authzErrorResponse(error);
+  }
 }
