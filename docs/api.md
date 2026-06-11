@@ -38,3 +38,11 @@ revealed), 403 if the role is insufficient. Backend not configured returns 503.
 | GET | `/api/workspaces/:id/dossiers` | List the workspace's dossiers | - |
 | POST | `/api/workspaces/:id/dossiers` | Create a dossier from a SIMAP notice URL | `{ url }`. 400 `invalid-url` for a non-SIMAP URL (TND-002); 502 `not-found`/`fetch-error` for an unreachable notice; returns `{ id, title, reused }` (reused = an existing dossier for the same notice) |
 | GET | `/api/workspaces/:id/dossiers/:dossierId` | The dossier with its official source item | 404 if the dossier is not in this workspace (tenant isolation). Source fields are the official notice, shown verbatim with the disclaimer |
+
+## Dossier files (WP-012)
+
+| Method | Path | Purpose | Body / Notes |
+| --- | --- | --- | --- |
+| GET | `/api/workspaces/:id/dossiers/:dossierId/files` | List the dossier's uploaded files | Each file has `status` (stored, unsupported, too_large, failed) and `scanStatus` (pending, clean, infected, error) |
+| POST | `/api/workspaces/:id/dossiers/:dossierId/files` | Upload a document (multipart, field `file`) | Fail-closed scan-before-store (R-SCAN-04): bytes are stored only after a clean scan. PDF/DOCX only (TND-004); 50 MB cap; infected/unsupported/oversize return the file with an explicit status, never stored (TND-005). 404 if the dossier is not in this workspace |
+| DELETE | `/api/workspaces/:id/dossiers/:dossierId/files/:fileId` | Remove the R2 object and the row | 404 if the file is not in this workspace |

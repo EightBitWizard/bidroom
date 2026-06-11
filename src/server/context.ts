@@ -7,6 +7,8 @@ import { ConsoleEmailSender, type EmailSender, NoopEmailSender } from "./email";
 import { FixtureSimapClient, HttpSimapClient, type SimapClient } from "./integrations/simap/client";
 import { getMembership } from "./repositories/workspaces";
 import { InMemoryRateLimiter, KVRateLimiter, type KVLike, type RateLimiter } from "./ratelimit";
+import { type Scanner, StubScanner } from "./scan";
+import { MemoryStorage, R2Storage, type R2Like, type Storage } from "./storage";
 
 /**
  * Resolves the server runtime from the Cloudflare environment. Pure of the Worker runtime
@@ -25,6 +27,10 @@ export interface ServerContext {
   baseUrl: string;
   /** SIMAP notice client; the fixture client in dev/test, the live client otherwise. */
   simap: SimapClient;
+  /** Object storage for uploaded documents (R2 in production, in-memory otherwise). */
+  storage: Storage;
+  /** Malware scanner for uploads; the Container in production, the EICAR stub otherwise. */
+  scanner: Scanner;
 }
 
 export interface CloudflareEnv {
@@ -37,6 +43,8 @@ export interface CloudflareEnv {
   DEV_EMAIL_CONSOLE?: string;
   /** When "true", resolve SIMAP notices from recorded fixtures instead of the live API. */
   SIMAP_USE_FIXTURES?: string;
+  /** R2 bucket for uploaded documents (`jurisdiction=eu`); absent in dev/test. */
+  DOCS?: R2Like;
 }
 
 const MIN_SECRET_LENGTH = 32;
@@ -75,6 +83,10 @@ export function buildContext(env: CloudflareEnv | undefined): ServerContext | nu
     sessionSecret: env.SESSION_SECRET,
     baseUrl: env.APP_BASE_URL ?? "https://app.bidroom.example",
     simap: env.SIMAP_USE_FIXTURES === "true" ? new FixtureSimapClient() : new HttpSimapClient(),
+    storage: env.DOCS ? new R2Storage(env.DOCS) : new MemoryStorage(),
+    // The ContainerScanner is wired when the parsing Container is provisioned (ADR 0005);
+    // until then the EICAR stub exercises the fail-closed gate.
+    scanner: new StubScanner(),
   };
 }
 
