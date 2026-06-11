@@ -4,8 +4,10 @@
  * and invokes the parsing Container. It imports only from @/server and @/domain, never the
  * web app. Pipeline step functions stay plain and portable.
  */
-export default {
+const pipelineWorker = {
   async fetch(): Promise<Response> {
     return new Response("bidroom pipeline worker", { status: 200 });
   },
 };
+
+export default pipelineWorker;
