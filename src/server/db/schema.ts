@@ -172,3 +172,34 @@ export const dossiers = sqliteTable(
   },
   (table) => [index("idx_dossiers_workspace").on(table.workspaceId)],
 );
+
+/**
+ * A document uploaded to a dossier (WP-012). The bytes live in R2; this row is the registry.
+ * `scan_status` records the fail-closed malware scan (R-SCAN-04): bytes are stored only after a
+ * clean scan. `status` records the outcome (stored, unsupported, too_large, failed). The
+ * workspace_id is denormalized for tenant-scoped queries.
+ */
+export const uploadedFiles = sqliteTable(
+  "uploaded_files",
+  {
+    id: text("id").primaryKey(),
+    dossierId: text("dossier_id")
+      .notNull()
+      .references(() => dossiers.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mime: text("mime"),
+    size: integer("size").notNull(),
+    sha256: text("sha256"),
+    category: text("category").notNull().default("tender"),
+    scanStatus: text("scan_status").notNull().default("pending"),
+    status: text("status").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => accounts.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("idx_uploaded_files_dossier").on(table.dossierId)],
+);
