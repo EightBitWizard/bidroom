@@ -40,8 +40,41 @@
   },
   "workspace": {
     "homeTitle": "Arbeitsbereich-Startseite",
-    "emptyIntro": "Dieser Arbeitsbereich ist bereit. Ausschreibungserfassung und Qualifizierung folgen in einem spaeteren Schritt.",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "companyProfile": "Firmenprofil",
+    "dossiers": "Ausschreibungsdossiers",
+    "newDossier": "Neues Dossier",
+    "simapUrlLabel": "SIMAP-Ausschreibungs-URL",
+    "simapUrlPlaceholder": "https://www.simap.ch/...",
+    "createDossier": "Dossier erstellen",
+    "noDossiers": "Noch keine Dossiers. Fuegen Sie eine SIMAP-Ausschreibungs-URL ein, um eines zu starten.",
+    "openDossier": "Oeffnen",
+    "intakeInvalidUrl": "Das ist keine SIMAP-Ausschreibungs-URL. Fuegen Sie einen Link von www.simap.ch ein.",
+    "intakeFetchError": "Die Ausschreibung konnte nicht abgerufen werden. Pruefen Sie den Link und versuchen Sie es erneut."
+  },
+  "dossier": {
+    "officialSource": "Amtliche Quelle (SIMAP)",
+    "analysisHeading": "Bidroom-Analyse",
+    "analysisComing": "Die Qualifizierungsanalyse (Ausschlussgruende, Fristen, benoetigte Nachweise) folgt in einem spaeteren Schritt.",
+    "authority": "Auftraggeberin",
+    "procedureType": "Verfahren",
+    "publicationDate": "Publikationsdatum",
+    "viewOnSimap": "Auf SIMAP ansehen",
+    "back": "Zurueck zum Arbeitsbereich",
+    "notFound": "Dieses Dossier wurde nicht gefunden."
+  },
+  "profile": {
+    "title": "Firmenprofil",
+    "intro": "Dient der Eignungsbeurteilung. Geben Sie kommagetrennte Werte ein; Sie koennen dies spaeter verfeinern.",
+    "capabilityTags": "Faehigkeiten",
+    "regions": "Regionen",
+    "languages": "Sprachen",
+    "certifications": "Zertifizierungen",
+    "exclusions": "Ausgeschlossene Ausschreibungsarten",
+    "save": "Profil speichern",
+    "saved": "Profil gespeichert.",
+    "error": "Das Profil konnte nicht gespeichert werden.",
+    "back": "Zurueck zum Arbeitsbereich"
   },
   "settings": {
     "title": "Einstellungen",

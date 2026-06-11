@@ -40,8 +40,41 @@
   },
   "workspace": {
     "homeTitle": "Workspace home",
-    "emptyIntro": "This workspace is ready. Tender intake and qualification arrive in a later step.",
-    "settings": "Settings"
+    "settings": "Settings",
+    "companyProfile": "Company profile",
+    "dossiers": "Tender dossiers",
+    "newDossier": "New dossier",
+    "simapUrlLabel": "SIMAP notice URL",
+    "simapUrlPlaceholder": "https://www.simap.ch/...",
+    "createDossier": "Create dossier",
+    "noDossiers": "No dossiers yet. Paste a SIMAP notice URL to start one.",
+    "openDossier": "Open",
+    "intakeInvalidUrl": "That is not a SIMAP notice URL. Paste a link from www.simap.ch.",
+    "intakeFetchError": "The notice could not be retrieved. Check the link and try again."
+  },
+  "dossier": {
+    "officialSource": "Official source (SIMAP)",
+    "analysisHeading": "Bidroom analysis",
+    "analysisComing": "Qualification analysis (blockers, deadlines, required evidence) arrives in a later step.",
+    "authority": "Contracting authority",
+    "procedureType": "Procedure",
+    "publicationDate": "Publication date",
+    "viewOnSimap": "View on SIMAP",
+    "back": "Back to workspace",
+    "notFound": "This dossier was not found."
+  },
+  "profile": {
+    "title": "Company profile",
+    "intro": "Used to assess fit. Enter comma-separated values; you can refine this later.",
+    "capabilityTags": "Capabilities",
+    "regions": "Regions",
+    "languages": "Languages",
+    "certifications": "Certifications",
+    "exclusions": "Excluded tender types",
+    "save": "Save profile",
+    "saved": "Profile saved.",
+    "error": "The profile could not be saved.",
+    "back": "Back to workspace"
   },
   "settings": {
     "title": "Settings",

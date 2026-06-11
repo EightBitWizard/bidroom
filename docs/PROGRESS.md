@@ -4,11 +4,38 @@ A running record of what is built versus pending, kept up to date as work lands.
 target picture see `technical_architecture_and_implementation_plan.md` (work packages and phases)
 and `bidroom_user_stories_and_requirements.md`; this file is the short status overview.
 
-Last updated: 2026-06-10 (Phase 0 walking skeleton landed: WP-001 to WP-004)
+Last updated: 2026-06-11 (Phase 1 batch 1 landed: dossier intake, WP-010 + WP-011)
 
 ## Resume here (next session)
 
-Phase 0 is COMPLETE and on `main` (gate green, 54 unit/integration tests, 3 Playwright smoke tests):
+Phase 1 batch 1 (dossier intake) is COMPLETE and on `main` (gate green, 71 unit/integration tests,
+4 Playwright smoke tests):
+
+- WP-010 company profile: one versioned profile per workspace, tenant-scoped, with a form.
+- WP-011 SIMAP intake: paste a SIMAP notice URL -> the public read-only SIMAP client fetches the
+  notice (isolated in `src/server/integrations/simap`, mockable with a recorded fixture, ADR 0004)
+  -> the official data is stored verbatim (`tender_source_items.raw_source`, LEG-002) -> a
+  tenant-scoped dossier is created -> the dossier detail shows the official fields under an
+  "Official source" heading with the `SourceDisclaimer`, separated from a "Bidroom analysis"
+  placeholder. Non-SIMAP URLs are rejected (TND-002); duplicate notices in a workspace reuse the
+  existing dossier. The foreign-workspace authz matrix now covers dossiers and profiles.
+
+Next: Phase 1 continues toward the brief. The honest next frontiers each have an operator
+dependency:
+
+- WP-012 document upload + the fail-closed ClamAV Container: needs R2 provisioning and the
+  Cloudflare Container (image + binding). Build the upload + scan interface, wire the Container at
+  provisioning.
+- WP-013 to WP-019 extraction -> LLM findings -> citation verification -> the brief UI: needs the
+  Anthropic + Mistral API keys and the 15-30 tender eval corpus (operator items). The pipeline is
+  built against recorded fixtures (LLM_USE_FIXTURES default); live runs need the keys.
+
+The SIMAP exact URL parsing and field mapping (ADR 0004) are refined against a real notice URL
+during rollout; the tolerant parser plus the manual-entry fallback cover the interim.
+
+## Earlier resume note (Phase 0)
+
+Phase 0 (the foundation) is on `main` (the auth, multi-tenant workspaces, and the gate):
 
 - WP-001 scaffold + CI (pnpm gate, ESLint boundaries, check-copy, i18n, landing, gitleaks/dependabot).
 - WP-002 Cloudflare config (wrangler.jsonc with DB/KV/R2 bindings, OpenNext, drizzle.config, deploy
@@ -69,6 +96,8 @@ findings screen) is the product.
 ## Phase status (tech plan Section 24)
 
 - Phase 0 foundation: COMPLETE (WP-001 to WP-004; live Cloudflare provisioning operator-blocked)
+- Phase 1 MVP core: IN PROGRESS. Done: WP-010 company profile, WP-011 SIMAP dossier intake. Next:
+  WP-012 upload + Container (needs R2/Container), WP-013 to WP-019 pipeline (needs LLM/OCR keys + eval set)
 - Phase 1 MVP core product: not started
 - Phase 2 trust, payments, launch readiness: not started
 - Phase 3 retention and paid depth: not started

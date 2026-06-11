@@ -27,3 +27,11 @@ test("login form posts and surfaces an outcome", async ({ page }) => {
   // The backend is unconfigured under `next start`, so the form shows a message either way.
   await expect(page.getByTestId("login-message")).toBeVisible();
 });
+
+test("the company profile form renders", async ({ page }) => {
+  // The form falls back to empty fields when the backend is unconfigured, so it renders under
+  // `next start`. The live save and tenant scoping are covered by the integration tests.
+  await page.goto("/en/app/any-workspace-id/profile");
+  await expect(page.getByTestId("profile-form")).toBeVisible();
+  await expect(page.getByTestId("profile-capabilityTags")).toBeVisible();
+});
