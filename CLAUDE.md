@@ -99,12 +99,15 @@ Documentation is part of the implementation, not a later cleanup task. A change 
 
 Maintain (per tech plan Section 22, as the repo grows): `README.md`, `docs/adr/`, `docs/setup.md`, `docs/deployment.md`, `docs/testing.md`, `docs/data-model.md`, `docs/api.md`, `docs/security.md`, `docs/privacy.md`, `docs/prompts.md`, `docs/runbook.md`, `CHANGELOG.md`. Keep `docs/PROGRESS.md` and `docs/OPERATOR_TODO.md` current as work lands.
 
+Keep the implementation plan's status current: the tech plan Section 25 has an "Implementation status" marker listing which work packages are done, in progress, and not started. Update it at the end of every batch so the plan always reflects reality.
+
 ## Git policy
 
 During early development, committing directly to `main` is allowed if the quality gate passes. Keep commits small and logical.
 
 - One coherent change per commit; do not mix unrelated refactors, features, and formatting.
 - Conventional commits: `feat:`, `fix:`, `test:`, `docs:`, `refactor:`, `chore:`, `ci:`. Reference requirement IDs in the body.
+- Push to `origin/main` after each commit so the remote stays current. If a push fails for authentication, record it in `docs/OPERATOR_TODO.md` rather than leaving commits silently unpushed.
 - Include tests and docs in the same commit as the behavior change.
 - Never commit secrets, tokens, private keys, credentials, or real customer data (including pilot tender documents without written permission and anonymization).
 - Before committing, show a short summary of changed files, tests run, and remaining risks.

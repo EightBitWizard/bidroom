@@ -894,6 +894,17 @@ SSO, custom retention, security questionnaire package, invoicing workflows, data
 
 ## 25. Detailed implementation work breakdown
 
+**Implementation status** (updated at the end of every batch; the codebase is the source of truth).
+- Done: WP-001, WP-002 (config only; live Cloudflare provisioning is operator-blocked), WP-003,
+  WP-004 (Phase 0 foundation); WP-010, WP-011 (Phase 1 intake).
+- In progress: WP-012 (document upload and the fail-closed scan boundary; the ClamAV Container and
+  live R2 are operator-blocked).
+- Not started: WP-013 to WP-024 (extraction, OCR, LLM findings, citation verification, brief, UI,
+  checklist, evidence, decision, export, privacy flows, admin) and Phase 2+ (WP-030 onward).
+- Operator-blocked dependencies for visible end-to-end value: the Cloudflare account/token, D1/R2/KV
+  provisioning, the parsing Container, and the Anthropic + Mistral keys plus the eval corpus
+  (`docs/OPERATOR_TODO.md`).
+
 Risk: L/M/H. Priority: P0 unless noted. Each WP is one or a few PRs with conventional commits per logical step.
 
 | ID | Title | User value | Technical scope | Files/modules | Depends on | Acceptance criteria | Tests | Docs | Risk |
