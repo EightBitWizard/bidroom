@@ -896,9 +896,10 @@ SSO, custom retention, security questionnaire package, invoicing workflows, data
 
 **Implementation status** (updated at the end of every batch; the codebase is the source of truth).
 - Done: WP-001, WP-002 (config only; live Cloudflare provisioning is operator-blocked), WP-003,
-  WP-004 (Phase 0 foundation); WP-010, WP-011 (Phase 1 intake).
-- In progress: WP-012 (document upload and the fail-closed scan boundary; the ClamAV Container and
-  live R2 are operator-blocked).
+  WP-004 (Phase 0 foundation); WP-010, WP-011 (Phase 1 intake); WP-012 (document upload and the
+  fail-closed scan boundary; the ClamAV Container and live R2 wiring are operator-blocked).
+- Next: WP-013 (text extraction with anchors), then WP-014 OCR, WP-015 status UX, WP-016 LLM
+  extraction, WP-017 citation verification, WP-018 brief assembly, WP-019 dossier brief UI.
 - Not started: WP-013 to WP-024 (extraction, OCR, LLM findings, citation verification, brief, UI,
   checklist, evidence, decision, export, privacy flows, admin) and Phase 2+ (WP-030 onward).
 - Operator-blocked dependencies for visible end-to-end value: the Cloudflare account/token, D1/R2/KV

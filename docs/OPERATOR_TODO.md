@@ -17,7 +17,15 @@ reference the tech plan Sections 27 and 28.
 
 ## Accounts to create (needed during Phase 0 and 1; provide secrets as wrangler/CI secrets, never in the repo)
 
-- [ ] GitHub: private repository `bidroom` (if not already the origin) with Actions enabled.
+> Critical path note (2026-06-11): the code through WP-012 (auth, workspaces, dossier intake,
+> document upload) is built and tested locally but cannot show real end-to-end value until these are
+> provisioned. The next features (the analysis pipeline that produces the qualification brief) depend
+> on: the Cloudflare account/token + D1/R2/KV, the parsing Container (PDF/DOCX text extraction and
+> ClamAV), and the Anthropic + Mistral keys plus the 15-30 tender eval corpus. Provisioning is now
+> the main thing standing between the working code and a usable product.
+
+- [ ] GitHub: private repository `bidroom` is the origin (`git@github.com:EightBitWizard/bidroom.git`)
+      and commits are being pushed. Confirm Actions are enabled so CI runs on push.
 - [ ] Cloudflare: enable the Workers Paid plan (USD 5/month; required for Containers and
       Workflows) on your existing account or a new one, and provide an API token with Workers,
       D1, R2, KV, and Queues permissions so the agent can provision and deploy via wrangler (WP-002).
@@ -26,6 +34,11 @@ reference the tech plan Sections 27 and 28.
 - [ ] Cloudflare KV namespace for the durable rate limiter (`RATE_LIMIT_KV` binding), required
       from WP-004 so the auth rate limiter is durable from day one and never an in-memory-only
       limiter in production (ADR 0003). This is the Bidroom equivalent of moola's open KV item.
+- [ ] Cloudflare R2 bucket (`DOCS` binding, `jurisdiction=eu`) and the parsing Container (a Node
+      image with the PDF/DOCX parsers and ClamAV, exposed for `getContainer(env.PARSER)`), required
+      from WP-012/WP-013. Until then uploads use an in-memory store and the EICAR-only stub scanner;
+      the real ClamAV Container is required before any real customer document is processed (ADR 0005,
+      R-SCAN-04).
 - [ ] Anthropic API account; provide `ANTHROPIC_API_KEY` and set a daily spend cap (plan default
       `LLM_DAILY_SPEND_CAP_USD=25`). Needed from WP-016 (LLM extraction).
 - [ ] Mistral API account for OCR; needed from WP-014.

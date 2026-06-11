@@ -61,7 +61,19 @@
     "publicationDate": "Publication date",
     "viewOnSimap": "View on SIMAP",
     "back": "Back to workspace",
-    "notFound": "This dossier was not found."
+    "notFound": "This dossier was not found.",
+    "documents": "Documents",
+    "uploadHint": "Upload the tender PDF or DOCX files you obtained from SIMAP. Files are scanned before they are stored.",
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "noFiles": "No documents yet.",
+    "removeFile": "Remove",
+    "uploadError": "The upload failed. Please try again.",
+    "statusStored": "Stored",
+    "statusUnsupported": "Unsupported file type (PDF or DOCX only)",
+    "statusTooLarge": "Too large (50 MB maximum)",
+    "statusFailed": "Could not be accepted (scan failed)",
+    "statusScanning": "Scanning"
   },
   "profile": {
     "title": "Company profile",

@@ -6,7 +6,7 @@ Bidroom is decision support, not legal advice. It does not discover tenders, dra
 
 ## Status
 
-Phase 0 (the foundation) and the first Phase 1 batch have landed: the gate, CI, Cloudflare config, the multi-tenant schema and authz, the hardened magic-link auth ported from moola, the workspace shell, and dossier intake (a company profile plus creating a dossier from a SIMAP notice URL, with the official notice shown verbatim and the required disclaimer). The live Cloudflare provisioning (real D1/R2/KV, domain) and the LLM/OCR keys for the analysis pipeline remain operator tasks. See `docs/PROGRESS.md` for the current build status, `docs/setup.md` to run it locally, and `docs/OPERATOR_TODO.md` for founder action items.
+Phase 0 (the foundation) and the first two Phase 1 batches have landed: the gate, CI, Cloudflare config, the multi-tenant schema and authz, the hardened magic-link auth ported from moola, the workspace shell, dossier intake (a company profile plus creating a dossier from a SIMAP notice URL, with the official notice shown verbatim and the required disclaimer), and document upload behind a fail-closed malware-scan boundary. The live Cloudflare provisioning (real D1/R2/KV, the parsing Container, domain) and the LLM/OCR keys for the analysis pipeline remain operator tasks. See `docs/PROGRESS.md` for the current build status, `docs/setup.md` to run it locally, and `docs/OPERATOR_TODO.md` for founder action items.
 
 ## Documentation map
 

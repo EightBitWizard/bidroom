@@ -22,10 +22,11 @@ in `src/server/db/migrations`.
 | --- | --- | --- | --- |
 | `company_profiles` | One qualification baseline per workspace (capabilities, regions, languages, certifications, exclusions as JSON; `profile_version`) | tenant | unique on `workspace_id`; version bumps on save |
 | `tender_source_items` | Official SIMAP notice references | system (shared) | `raw_source` is the verbatim API JSON, never edited (LEG-002); unique on (`simap_project_id`, `simap_publication_id`) |
-| `dossiers` | A tender case referencing a source item | tenant | `status` draft for now; findings/files/decisions attach in later batches |
+| `dossiers` | A tender case referencing a source item | tenant | `status` draft for now; findings/decisions attach in later batches |
+| `uploaded_files` | A document attached to a dossier (bytes in R2) | tenant | `scan_status` (pending/clean/infected/error) records the fail-closed malware scan; `status` (stored/unsupported/too_large/failed) the outcome (WP-012) |
 
 ## Pending (later batches)
 
-`uploaded_files` (WP-012), `analysis_runs` + `findings` + `citations` (WP-013 to WP-018),
+`analysis_runs` + `findings` + `citations` (WP-013 to WP-018),
 `checklist_tasks` + `evidence_items` (WP-019 to WP-021), `decision_records` + `exports` (WP-022), and
 the Phase 2 billing tables (`processed_events`, entitlement columns).

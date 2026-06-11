@@ -61,7 +61,19 @@
     "publicationDate": "Publikationsdatum",
     "viewOnSimap": "Auf SIMAP ansehen",
     "back": "Zurueck zum Arbeitsbereich",
-    "notFound": "Dieses Dossier wurde nicht gefunden."
+    "notFound": "Dieses Dossier wurde nicht gefunden.",
+    "documents": "Dokumente",
+    "uploadHint": "Laden Sie die von SIMAP bezogenen Ausschreibungsdateien (PDF oder DOCX) hoch. Dateien werden vor dem Speichern geprueft.",
+    "upload": "Hochladen",
+    "uploading": "Wird hochgeladen...",
+    "noFiles": "Noch keine Dokumente.",
+    "removeFile": "Entfernen",
+    "uploadError": "Der Upload ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "statusStored": "Gespeichert",
+    "statusUnsupported": "Nicht unterstuetzter Dateityp (nur PDF oder DOCX)",
+    "statusTooLarge": "Zu gross (maximal 50 MB)",
+    "statusFailed": "Konnte nicht angenommen werden (Pruefung fehlgeschlagen)",
+    "statusScanning": "Wird geprueft"
   },
   "profile": {
     "title": "Firmenprofil",
