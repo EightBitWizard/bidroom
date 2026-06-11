@@ -77,3 +77,20 @@ export interface Dossier {
   createdBy: string;
   createdAt: string;
 }
+
+export interface UploadedFile {
+  id: string;
+  dossierId: string;
+  workspaceId: string;
+  filename: string;
+  mime: string | null;
+  size: number;
+  sha256: string | null;
+  category: string;
+  /** Fail-closed malware scan state: pending, clean, infected, error. */
+  scanStatus: string;
+  /** Outcome: stored, unsupported, too_large, failed. */
+  status: string;
+  createdBy: string;
+  createdAt: string;
+}

@@ -43,6 +43,14 @@ export async function sha256Hex(input: string): Promise<string> {
     .join("");
 }
 
+/** SHA-256 of raw bytes as lowercase hex (for uploaded-file integrity). */
+export async function sha256HexBytes(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 /** HMAC-SHA256 of a message with a secret, as lowercase hex. */
 export async function hmacSha256Hex(message: string, secret: string): Promise<string> {
   const key = await hmacKey(secret);
