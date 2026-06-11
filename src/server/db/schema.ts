@@ -1,4 +1,11 @@
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Bidroom database schema v1 (Drizzle, SQLite dialect on D1; ADR 0002). Account-scoped auth
@@ -95,3 +102,73 @@ export const auditEvents = sqliteTable("audit_events", {
   reason: text("reason"),
   createdAt: text("created_at").notNull(),
 });
+
+/**
+ * The qualification baseline for a workspace (WP-010). One per workspace. The list fields are
+ * stored as JSON text (SQLite has no array type). profile_version is bumped on each save so an
+ * analysis can record the profile version it used.
+ */
+export const companyProfiles = sqliteTable("company_profiles", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id")
+    .notNull()
+    .unique()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  capabilityTags: text("capability_tags", { mode: "json" }).$type<string[]>(),
+  regions: text("regions", { mode: "json" }).$type<string[]>(),
+  languages: text("languages", { mode: "json" }).$type<string[]>(),
+  certifications: text("certifications", { mode: "json" }).$type<string[]>(),
+  exclusions: text("exclusions", { mode: "json" }).$type<string[]>(),
+  profileVersion: integer("profile_version").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * An official SIMAP notice reference (WP-011). System-owned public data, shared across
+ * workspaces if the same notice is opened twice. `raw_source` is the verbatim API JSON and is
+ * never edited (LEG-002); the extracted fields are for display only. Keyed by the SIMAP
+ * project + publication ids.
+ */
+export const tenderSourceItems = sqliteTable(
+  "tender_source_items",
+  {
+    id: text("id").primaryKey(),
+    simapProjectId: text("simap_project_id").notNull(),
+    simapPublicationId: text("simap_publication_id").notNull(),
+    simapUrl: text("simap_url").notNull(),
+    authority: text("authority"),
+    title: text("title"),
+    procedureType: text("procedure_type"),
+    publicationDate: text("publication_date"),
+    rawSource: text("raw_source").notNull(),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_tender_source_notice").on(table.simapProjectId, table.simapPublicationId),
+  ],
+);
+
+/**
+ * A tender case in a workspace (WP-011), tenant-scoped. References the official source item;
+ * findings, files, and decisions attach to it in later work packages.
+ */
+export const dossiers = sqliteTable(
+  "dossiers",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    sourceItemId: text("source_item_id")
+      .notNull()
+      .references(() => tenderSourceItems.id),
+    title: text("title").notNull(),
+    status: text("status").notNull().default("draft"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => accounts.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("idx_dossiers_workspace").on(table.workspaceId)],
+);
