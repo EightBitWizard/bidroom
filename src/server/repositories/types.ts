@@ -40,3 +40,40 @@ export interface Invitation {
   invitedBy: string;
   createdAt: string;
 }
+
+export interface CompanyProfile {
+  id: string;
+  workspaceId: string;
+  capabilityTags: string[];
+  regions: string[];
+  languages: string[];
+  certifications: string[];
+  exclusions: string[];
+  profileVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenderSourceItem {
+  id: string;
+  simapProjectId: string;
+  simapPublicationId: string;
+  simapUrl: string;
+  authority: string | null;
+  title: string | null;
+  procedureType: string | null;
+  publicationDate: string | null;
+  /** The verbatim SIMAP API JSON, never edited (LEG-002). */
+  rawSource: string;
+  fetchedAt: string;
+}
+
+export interface Dossier {
+  id: string;
+  workspaceId: string;
+  sourceItemId: string;
+  title: string;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+}
